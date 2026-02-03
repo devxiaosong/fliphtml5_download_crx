@@ -12,12 +12,12 @@ function IndexPopup() {
   const items = [
     {
       key: 'scan',
-      label: '扫描控制',
+      label: 'Scan Control',
       children: <ScanControl />
     },
     {
       key: 'account',
-      label: '账户与付费',
+      label: 'Account & Pricing',
       children: <AccountPanel />
     }
   ]

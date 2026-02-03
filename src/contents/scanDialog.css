@@ -1,0 +1,85 @@
+/* 图片预览容器 */
+.image-preview-container {
+  background: #fafafa;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 16px;
+  max-height: 450px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 图片预览标题 - 固定不滚动 */
+.image-preview-title {
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+/* 图片网格滚动区域 */
+.image-preview-scroll {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.image-preview-item {
+  position: relative;
+  aspect-ratio: 3/4;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+  background: white;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.image-preview-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-preview-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  padding: 8px;
+  font-size: 12px;
+}
+
+/* 滚动条样式 */
+.scan-dialog::-webkit-scrollbar,
+.image-preview-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scan-dialog::-webkit-scrollbar-track,
+.image-preview-scroll::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scan-dialog::-webkit-scrollbar-thumb,
+.image-preview-scroll::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.scan-dialog::-webkit-scrollbar-thumb:hover,
+.image-preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
