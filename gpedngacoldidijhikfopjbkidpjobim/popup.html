@@ -1,0 +1,498 @@
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FlipHTML5 to PDF Downloader</title>
+  <style>
+    :root {
+      --primary-color: #666;
+      --secondary-color: #555;
+      --danger-color: #c62828;
+      --accent-color: #888;
+      --bg-dark: #1a1a1a;
+      --bg-medium: #2a2a2a;
+      --text-light: #e0e0e0;
+      --text-dark: #999;
+      --border-color: #444;
+      --shadow: 0 2px 8px rgba(0,0,0,0.5);
+      --success-color: #00ff00;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', sans-serif;
+      width: 420px;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-dark);
+      color: var(--text-light);
+    }
+    
+    .header {
+      position: relative;
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-light);
+    }
+    
+    .header p {
+      margin: 5px 0 0;
+      font-size: 12px;
+      color: var(--text-dark);
+    }
+    
+    .status-indicator {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-dark);
+    }
+    
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      background-color: var(--success-color);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+      box-shadow: 0 0 8px var(--success-color);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background-color: var(--bg-medium);
+      color: var(--text-light);
+      border: 1px solid var(--border-color);
+    }
+    
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.6);
+      background-color: var(--primary-color);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    #scan {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    
+    #scan:hover {
+      background-color: #777;
+    }
+    
+    #stop {
+      background-color: var(--danger-color);
+      border-color: var(--danger-color);
+    }
+    
+    #stop:hover {
+      background-color: #d32f2f;
+    }
+    
+    #save {
+      background-color: var(--secondary-color);
+      border-color: var(--secondary-color);
+    }
+    
+    #save:hover {
+      background-color: #666;
+    }
+    
+    #clear {
+      background-color: var(--danger-color);
+      border-color: var(--danger-color);
+      padding: 10px 15px;
+    }
+    
+    #clear:hover {
+      background-color: #b71c1c;
+    }
+    
+    #preview {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+      gap: 8px;
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      background-color: var(--bg-medium);
+      margin-bottom: 15px;
+    }
+    
+    #preview img {
+      width: 100%;
+      height: auto;
+      border: 2px solid var(--border-color);
+      border-radius: 4px;
+      box-sizing: border-box;
+      background: var(--bg-dark);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    
+    #preview img:hover {
+      transform: scale(1.02);
+      border-color: var(--primary-color);
+    }
+    
+    #status {
+      font-size: 12px;
+      color: var(--text-dark);
+      margin-bottom: 6px;
+      min-height: 16px;
+      text-align: center;
+    }
+    
+    #preview::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #preview::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+      border-radius: 10px;
+    }
+    
+    #preview::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 10px;
+    }
+    
+    #preview::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-color);
+    }
+    
+    .save-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    
+    .controls-box {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 8px;
+      padding: 12px;
+      background-color: var(--bg-medium);
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .buttons-row {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .buttons-row button {
+      flex: 1;
+    }
+    
+    #clear {
+      flex: 0 0 auto;
+      min-width: 100px;
+    }
+    
+    .radio-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-light);
+    }
+    
+    .radio-container input[type="radio"] {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      accent-color: var(--primary-color);
+    }
+    
+  /* base */
+input[type="range"]{
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Chrome / Edge / Safari */
+input[type="range"]::-webkit-slider-runnable-track{
+  background: #cfcfcf;          /* ← grigio chiaro */
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #8a8a8a;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.25);
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #333;
+  margin-top: -6px; /* centra il thumb rispetto al track alto 8px */
+  box-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-track{
+  background: #cfcfcf;          /* ← grigio chiaro */
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #8a8a8a;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.25);
+}
+input[type="range"]::-moz-range-thumb{
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #333;
+  box-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+    
+    input[type="range"]::-webkit-slider-track {
+      background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+      border: 2px solid #555;
+      height: 8px;
+      border-radius: 4px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    
+ 
+    
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background-color: #4CAF50;
+      border-color: #ffffff;
+      transform: scale(1.1);
+    }
+    
+    input[type="range"]::-moz-range-track {
+      background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+      border: 2px solid #555;
+      height: 8px;
+      border-radius: 4px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+      background-color: #ffffff;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      border: 3px solid #333;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      cursor: pointer;
+    }
+    
+    input[type="range"]::-moz-range-thumb:hover {
+      background-color: #4CAF50;
+      border-color: #ffffff;
+    }
+    
+    #licenseSection {
+      transition: all 0.3s ease;
+      margin-top: 20px;
+      padding: 15px;
+      background: var(--bg-medium);
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    
+    #licenseSection h3 {
+      margin-top: 0;
+      color: var(--text-light);
+      font-size: 14px;
+    }
+    
+    #licenseSection p {
+      font-size: 12px;
+      color: var(--text-dark);
+      margin: 8px 0;
+    }
+    
+    #licenseKey {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+      background-color: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-light);
+      box-sizing: border-box;
+    }
+    
+    #licenseKey::placeholder {
+      color: var(--text-dark);
+    }
+    
+    #activateLicense {
+      width: 100%;
+      padding: 10px;
+      background: var(--secondary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    
+    #activateLicense:hover {
+      background: var(--primary-color);
+    }
+    
+    #activateLicense:active {
+      transform: scale(0.98);
+    }
+    
+    #licenseSection a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+    
+    #licenseSection a:hover {
+      color: var(--text-light);
+      text-decoration: underline;
+    }
+	#save {
+  background-color: #4CAF50;
+  border-color: #4CAF50;
+}
+
+#save:hover {
+  background-color: #45a049;
+}
+#licenseSection a {
+  color: #FFC107;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+#licenseSection a:hover {
+  color: #FFD54F;
+  text-decoration: underline;
+}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="status-indicator">
+      <span class="status-dot"></span>
+      <span>ACTIVE</span>
+    </div>
+    <h2>FlipHTML5 PDF Downloader</h2>
+    <p>Convert flipbook pages to PDF document</p>
+  </div>
+  
+  <div class="button-group">
+    <button id="scan">Scan Pages</button>
+    <button id="stop">Stop Scan</button>
+  </div>
+  
+  <div id="status"></div>
+  
+  <div id="preview"></div>
+  
+  <div class="save-section">
+
+    
+    <div class="controls-box">
+      <label style="font-size: 12px; color: var(--text-light); display: block; margin-bottom: 8px;">
+        PDF Page Orientation
+      </label>
+      <div style="display: flex; gap: 15px; justify-content: center;">
+        <label class="radio-container">
+          <input type="radio" name="orientation" value="portrait" checked>
+          <span>Portrait</span>
+        </label>
+        <label class="radio-container">
+          <input type="radio" name="orientation" value="landscape">
+          <span>Landscape</span>
+        </label>
+        <label class="radio-container">
+          <input type="radio" name="orientation" value="square">
+          <span>Square</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="buttons-row">
+      <button id="save">Save as PDF</button>
+      <button id="clear">Clear</button>
+    </div>
+  </div>
+  
+  <script src="popup.js" type="module"></script>
+  
+  <div id="licenseSection">
+    <h3>REMOVE DEMO WATERMARK</h3>
+    <p>Unlock full version to remove the demo watermark from all PDF pages:</p>
+    <input type="text" id="licenseKey" placeholder="Enter your unlock code">
+    <button id="activateLicense">ACTIVATE PRO VERSION</button>
+    <p style="font-size: 12px; margin-top: 8px;">
+      <a href="https://store.payproglobal.com/checkout?products[1][id]=118251" target="_blank">PURCHASE YOUR UNLOCK CODE</a>
+    </p>
+  </div>
+      <div class="controls-box">
+      <label style="font-size: 12px; color: var(--text-light); display: block; margin-bottom: 8px; width: 100%;">
+        Scan Speed (delay between pages)
+      </label>
+      <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+        <span style="font-size: 11px; color: var(--text-dark);">Fast</span>
+        <input type="range" id="scanSpeed" min="500" max="3000" value="1000" step="100">
+        <span style="font-size: 11px; color: var(--text-dark);">Slow</span>
+      </div>
+      <div style="text-align: center; margin-top: 5px; width: 100%;">
+        <small id="speedValue" style="color: var(--text-light); font-weight: 500;">1000ms</small>
+      </div>
+    </div>
+
+    <div class="controls-box" style="margin-top: 10px;">
+      <label class="radio-container" style="width: 100%; justify-content: flex-start;">
+        <input type="checkbox" id="chkRefreshPage" checked style="width: 16px; height: 16px; accent-color: var(--primary-color);">
+        <span style="font-size: 12px;">Refresh page when Start Scan</span>
+      </label>
+    </div>
+</body>
+</html>
