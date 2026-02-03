@@ -1,8 +1,8 @@
 {
-  "name": "plasmo_crx",
-  "displayName": "Plasmo Chrome Extension",
+  "name": "fliphtml5-downloader",
+  "displayName": "FlipHTML5 Downloader",
   "version": "1.0.0",
-  "description": "Chrome Extension with Plasmo, React and Ant Design",
+  "description": "Download FlipHTML5 flipbooks as PDF",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
@@ -13,13 +13,21 @@
   "license": "ISC",
   "manifest": {
     "host_permissions": [
+      "https://fliphtml5.com/*",
+      "https://online.fliphtml5.com/*",
       "https://*/*"
+    ],
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "storage"
     ]
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@supabase/supabase-js": "^2.93.3",
     "antd": "^6.2.3",
+    "jspdf": "^4.1.0",
     "plasmo": "^0.90.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

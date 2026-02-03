@@ -18,13 +18,13 @@ type DynamicRules = {
     app_token: string;
 };
 
-export let dynamicRules:DynamicRules      = null
+export let dynamicRules: DynamicRules | null = null
 
-export let tierList: (null | undefined)[] = null
+export let tierList: any[] | null = null
 
 export let appInfo: AppInfo | null = null
 
-export let memebership: null | undefined  = null
+export let memebership: any | null = null
 
 
 export function logDebug(eventName:string, eventBody:string) {
@@ -100,16 +100,16 @@ export function getProductInfo() {
 }
 
 // 获取或生成唯一标识符
-async function getDeviceId() {
+async function getDeviceId(): Promise<string> {
     const st = await chrome.storage.local.get('uniqueId')
 
-    let uniqueId =''
+    let uniqueId = ''
     if (!st || !st.uniqueId) {
         let createUniqueId = generateUUID();
         await chrome.storage.local.set({uniqueId: createUniqueId})
         uniqueId = createUniqueId
     } else {
-        uniqueId = st.uniqueId
+        uniqueId = st.uniqueId as string
     }
 
     return uniqueId
