@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Button, Slider, Space, Typography } from "antd"
+import { Button, Slider, Flex, Typography } from "antd"
 import { PlayCircleOutlined } from "@ant-design/icons"
 
 const { Text } = Typography
@@ -34,10 +34,10 @@ export default function ScanControl() {
         return
       }
 
-      // 检查是否在 fliphtml5 网站
+      // 检查是否在 online.fliphtml5.com 网站
       const url = tab.url || ''
-      if (!url.includes('fliphtml5.com')) {
-        alert('Please use this extension on FlipHTML5 websites')
+      if (!url.includes('online.fliphtml5.com')) {
+        alert('Please use this extension on online.fliphtml5.com website')
         return
       }
 
@@ -56,7 +56,7 @@ export default function ScanControl() {
   }
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', padding: '20px 0' }}>
+    <Flex vertical gap="large" style={{ width: '100%', padding: '20px 0' }}>
       {/* 扫描速度设置 */}
       <div>
         <Text strong style={{ display: 'block', marginBottom: '8px' }}>
@@ -95,6 +95,6 @@ export default function ScanControl() {
       <Text type="secondary" style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>
         Please make sure you have opened a FlipHTML5 ebook page
       </Text>
-    </Space>
+    </Flex>
   )
 }

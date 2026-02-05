@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Button, Card, Space, Typography, Divider, Tag } from "antd"
+import { Button, Card, Flex, Typography, Divider, Tag } from "antd"
 import { GoogleOutlined, UserOutlined, CrownOutlined } from "@ant-design/icons"
 
 const { Title, Text, Paragraph } = Typography
@@ -75,7 +75,7 @@ export default function AccountPanel() {
   // 未登录状态
   if (!userState.isLoggedIn) {
     return (
-      <Space direction="vertical" size="large" style={{ width: '100%', padding: '20px 0' }}>
+      <Flex vertical gap="large" style={{ width: '100%', padding: '20px 0' }}>
         <div style={{ textAlign: 'center' }}>
           <UserOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
           <Title level={4}>Login Account</Title>
@@ -95,16 +95,16 @@ export default function AccountPanel() {
         <Text type="secondary" style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>
           By logging in, you agree to our Terms of Service
         </Text>
-      </Space>
+      </Flex>
     )
   }
 
   // 已登录状态
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', padding: '20px 0' }}>
+    <Flex vertical gap="large" style={{ width: '100%', padding: '20px 0' }}>
       {/* 用户信息 */}
       <Card size="small">
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Flex vertical gap="small" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text strong>{userState.username}</Text>
             <Button size="small" onClick={handleLogout}>Logout</Button>
@@ -122,7 +122,7 @@ export default function AccountPanel() {
           ) : (
             <Tag>Free Version</Tag>
           )}
-        </Space>
+        </Flex>
       </Card>
 
       <Divider style={{ margin: '8px 0' }}>Pricing Plans</Divider>
@@ -135,7 +135,7 @@ export default function AccountPanel() {
             hoverable
             style={{ borderColor: '#1890ff' }}
           >
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <Flex vertical gap="small" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text strong>Monthly Plan</Text>
                 <Text strong style={{ fontSize: '18px', color: '#1890ff' }}>$3.99/month</Text>
@@ -153,7 +153,7 @@ export default function AccountPanel() {
               >
                 Subscribe Monthly
               </Button>
-            </Space>
+            </Flex>
           </Card>
 
           <Card 
@@ -161,7 +161,7 @@ export default function AccountPanel() {
             hoverable
             style={{ borderColor: '#52c41a' }}
           >
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <Flex vertical gap="small" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <Text strong>Yearly Plan</Text>
@@ -187,7 +187,7 @@ export default function AccountPanel() {
               >
                 Subscribe Yearly
               </Button>
-            </Space>
+            </Flex>
           </Card>
         </>
       )}
@@ -203,6 +203,6 @@ export default function AccountPanel() {
       <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center', display: 'block' }}>
         Note: This is a demo version. Real payment will be integrated in future releases
       </Text>
-    </Space>
+    </Flex>
   )
 }

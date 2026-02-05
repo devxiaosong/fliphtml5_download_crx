@@ -21,14 +21,14 @@ function addWatermarkToCanvas(
   ctx: CanvasRenderingContext2D
 ): void {
   const text = 'DEMO'
-  const fontSize = 72
+  const fontSize = 120  // 增大字号，更明显
   
   // 保存当前状态
   ctx.save()
   
   // 设置水印样式
-  ctx.font = `${fontSize}px sans-serif`
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)' // 黑色 80% 透明度 = 20% 不透明度
+  ctx.font = `bold ${fontSize}px sans-serif`  // 加粗字体
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'  // 增加不透明度到30%
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   
@@ -38,7 +38,10 @@ function addWatermarkToCanvas(
   // 旋转 -45 度
   ctx.rotate(-45 * Math.PI / 180)
   
-  // 绘制水印文本
+  // 绘制水印文本（带描边更明显）
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'  // 白色描边
+  ctx.lineWidth = 3
+  ctx.strokeText(text, 0, 0)
   ctx.fillText(text, 0, 0)
   
   // 恢复状态
