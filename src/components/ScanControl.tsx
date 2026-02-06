@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react"
-import { Button, Slider, Flex, Typography } from "antd"
-import { PlayCircleOutlined } from "@ant-design/icons"
+import { Button, Slider, Flex, Typography, Divider } from "antd"
+import { PlayCircleOutlined, LinkOutlined } from "@ant-design/icons"
 
-const { Text } = Typography
+const { Text, Link } = Typography
 
 export default function ScanControl() {
-  const [scanSpeed, setScanSpeed] = useState(1000)
+  const [scanSpeed, setScanSpeed] = useState(3000)  // 默认最慢档
   const [isScanning, setIsScanning] = useState(false)
 
   // 从 storage 加载扫描速度设置
@@ -57,6 +57,30 @@ export default function ScanControl() {
 
   return (
     <Flex vertical gap="large" style={{ width: '100%', padding: '20px 0' }}>
+      {/* 示例链接 */}
+      <div style={{ 
+        background: '#f0f5ff', 
+        padding: '12px', 
+        borderRadius: '4px',
+        border: '1px solid #adc6ff'
+      }}>
+        <Text strong style={{ display: 'block', marginBottom: '8px', color: '#1890ff' }}>
+          <LinkOutlined /> Example Page
+        </Text>
+        <Link 
+          href="https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025" 
+          target="_blank"
+          style={{ fontSize: '12px', wordBreak: 'break-all' }}
+        >
+          https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025
+        </Link>
+        <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+          Click to open this example page, then start scanning
+        </Text>
+      </div>
+
+      <Divider style={{ margin: '0' }} />
+
       {/* 扫描速度设置 */}
       <div>
         <Text strong style={{ display: 'block', marginBottom: '8px' }}>

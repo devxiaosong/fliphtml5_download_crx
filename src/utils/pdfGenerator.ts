@@ -20,29 +20,46 @@ function addWatermarkToCanvas(
   canvas: HTMLCanvasElement, 
   ctx: CanvasRenderingContext2D
 ): void {
-  const text = 'DEMO'
-  const fontSize = 120  // 增大字号，更明显
+  const text = 'Source: FlipHTML5 | Non-Commercial Authorization | Redistribution and Resale Are Strictly Prohibited'
+  const fontSize = 96  // 字号
+  const lineHeight = 144  // 行间距
+  const angle = -45  // 旋转角度
   
   // 保存当前状态
   ctx.save()
   
   // 设置水印样式
-  ctx.font = `bold ${fontSize}px sans-serif`  // 加粗字体
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'  // 增加不透明度到30%
+  ctx.font = `${fontSize}px sans-serif`
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.30)'  // 15% 不透明度
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
+  
+  // 测量文本宽度
+  const textWidth = ctx.measureText(text).width
+  
+  // 计算旋转后需要覆盖的范围
+  const diagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
   
   // 移动到画布中心
   ctx.translate(canvas.width / 2, canvas.height / 2)
   
-  // 旋转 -45 度
-  ctx.rotate(-45 * Math.PI / 180)
+  // 旋转
+  ctx.rotate(angle * Math.PI / 180)
   
-  // 绘制水印文本（带描边更明显）
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'  // 白色描边
-  ctx.lineWidth = 3
-  ctx.strokeText(text, 0, 0)
-  ctx.fillText(text, 0, 0)
+  // 计算需要绘制的行数和列数，确保铺满整个画布
+  const rowSpacing = lineHeight
+  const colSpacing = textWidth + 100  // 列间距
+  const numRows = Math.ceil(diagonal / rowSpacing) + 2
+  const numCols = Math.ceil(diagonal / colSpacing) + 2
+  
+  // 在旋转后的空间中绘制水印网格
+  for (let row = -numRows; row <= numRows; row++) {
+    for (let col = -numCols; col <= numCols; col++) {
+      const x = col * colSpacing
+      const y = row * rowSpacing
+      ctx.fillText(text, x, y)
+    }
+  }
   
   // 恢复状态
   ctx.restore()

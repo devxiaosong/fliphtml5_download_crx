@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useState, useEffect, useRef } from "react"
-import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card, Tag, message, Dropdown } from "antd"
+import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card, message, Dropdown } from "antd"
 import type { MenuProps } from "antd"
 import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
 import { generatePDF, downloadPDF, type PDFOrientation } from "../utils/pdfGenerator"
@@ -26,15 +26,9 @@ interface ScanState {
   isComplete: boolean
 }
 
-interface UserState {
-  isPaid: boolean
-  subscriptionType: 'free' | 'monthly' | 'yearly'
-}
-
 function ScanDialog() {
   const [visible, setVisible] = useState(false)
   const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape' | 'square'>('portrait')
-  const [userState, setUserState] = useState<UserState>({ isPaid: false, subscriptionType: 'free' })
   const [scanState, setScanState] = useState<ScanState>({
     isScanning: false,
     isPaused: false,
@@ -45,6 +39,7 @@ function ScanDialog() {
   })
   
   const shouldStopRef = useRef(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)  // 滚动容器引用
 
   // ========== 扫描逻辑 ==========
   
@@ -190,7 +185,7 @@ function ScanDialog() {
   }
 
   // 扫描所有页面
-  async function scanAllPages(scanSpeed: number = 1000) {
+  async function scanAllPages(scanSpeed: number = 3000) {  // 默认最慢档
     console.log('🚀 Starting scan...')
     console.log(`⚙️ Scan speed: ${scanSpeed}ms`)
 
@@ -208,7 +203,8 @@ function ScanDialog() {
       return
     }
 
-    const totalPages = getTotalPages()
+    // 从 state 中获取总页数（已在弹窗打开时获取）
+    const totalPages = scanState.totalPages
     console.log(`📚 Total pages to scan: ${totalPages}`)
 
     if (totalPages === 0) {
@@ -217,9 +213,6 @@ function ScanDialog() {
       setScanState(prev => ({ ...prev, isScanning: false }))
       return
     }
-
-    // 更新总页数
-    setScanState(prev => ({ ...prev, totalPages }))
 
     const allImages: string[] = []
     let currentPage = 0
@@ -294,7 +287,30 @@ function ScanDialog() {
   useEffect(() => {
     const handleMessage = (request: any) => {
       if (request.action === 'showScanDialog') {
+        // 清空之前的缓存数据
+        console.log('🧹 Clearing previous scan data...')
+        setScanState({
+          isScanning: false,
+          isPaused: false,
+          currentPage: 0,
+          totalPages: 0,
+          scannedImages: [],
+          isComplete: false
+        })
+        
+        // 重置停止标志
+        shouldStopRef.current = false
+        
+        // 打开弹窗
         setVisible(true)
+        
+        // 弹窗打开时立即获取总页数
+        const total = getTotalPages()
+        console.log(`📊 Total pages detected: ${total}`)
+        setScanState(prev => ({
+          ...prev,
+          totalPages: total
+        }))
       }
     }
 
@@ -304,31 +320,29 @@ function ScanDialog() {
     }
   }, [])
 
-  // 加载用户状态
+  // 自动滚动到底部显示最新图片
   useEffect(() => {
-    chrome.storage.local.get(['userState'], (result: { userState?: UserState }) => {
-      if (result.userState) {
-        setUserState(result.userState)
-      }
-    })
-  }, [visible])
+    if (scanState.isScanning && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [scanState.scannedImages.length, scanState.isScanning])
 
   // 开始扫描
   const handleStartScan = () => {
     console.log('🚀 Starting scan from dialog...')
     
-    // 清除之前的扫描数据
-    setScanState({
+    // 清除之前的扫描数据（保留总页数）
+    setScanState(prev => ({
       isScanning: true,
       isPaused: false,
       currentPage: 0,
-      totalPages: 0,
+      totalPages: prev.totalPages, // 保留已获取的总页数
       scannedImages: [],
       isComplete: false
-    })
+    }))
 
     // 开始扫描
-    scanAllPages(1000)
+    scanAllPages(3000)  // 使用最慢档速度
   }
 
   // 停止扫描
@@ -352,7 +366,7 @@ function ScanDialog() {
       
       const pdf = await generatePDF(imagesToUse, {
         orientation,
-        addWatermark: !userState.isPaid
+        addWatermark: true  // 始终添加水印
       })
 
       downloadPDF(pdf, `fliphtml5_ebook_${orientation}.pdf`)
@@ -411,22 +425,15 @@ function ScanDialog() {
   return (
     <ConfigProvider>
       <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span>FlipHTML5 Scanner</span>
-            {userState.isPaid ? (
-              <Tag color="gold">Premium - No Watermark</Tag>
-            ) : (
-              <Tag>Free - With Watermark</Tag>
-            )}
-          </div>
-        }
+        title="FlipHTML5 Scanner"
         open={visible}
         onCancel={handleClose}
         footer={null}
         width={800}
         centered
         maskClosable={false}
+        style={{ maxHeight: '90vh' }}
+        styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflow: 'hidden' } }}
       >
         {/* Progress Display */}
         <Card size="small" style={{ marginBottom: '16px' }}>
@@ -498,15 +505,17 @@ function ScanDialog() {
                 <Text type="secondary">No images scanned yet. Click "Start Scan" to begin.</Text>
               </div>
             ) : (
-              <div className="image-preview-grid">
-                {displayImages.map((imgUrl, index) => (
-                  <div key={index} className="image-preview-item">
-                    <img src={imgUrl} alt={`Page ${index + 1}`} />
-                    <div className="image-preview-overlay">
-                      <Text style={{ color: 'white' }}>Page {index + 1}</Text>
+              <div className="image-preview-scroll" ref={scrollContainerRef}>
+                <div className="image-preview-grid">
+                  {displayImages.map((imgUrl, index) => (
+                    <div key={index} className="image-preview-item">
+                      <img src={imgUrl} alt={`Page ${index + 1}`} />
+                      <div className="image-preview-overlay">
+                        <Text style={{ color: 'white' }}>Page {index + 1}</Text>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
