@@ -19,7 +19,7 @@ const MAX_PAGES = 500
 
 interface ScanState {
   isScanning: boolean
-  isPaused: false
+  isPaused: boolean
   currentPage: number
   totalPages: number
   scannedImages: string[]
@@ -86,11 +86,11 @@ function ScanDialog() {
     const nextBtn = getElementByXPath(nextBtnXPath)
     console.log('Next button found:', !!nextBtn)
     
-    const leftImageXPath = "//div[@id='bookContainer']//div[@class='left-mask-side']//div[@class='side-image']/img"
+    const leftImageXPath = "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
     const leftImages = getElementsByXPath(leftImageXPath)
     console.log('Left side images found:', leftImages.length)
     
-    const rightImageXPath = "//div[@id='bookContainer']//div[@class='right-mask-side']//div[@class='side-image']/img"
+    const rightImageXPath = "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
     const rightImages = getElementsByXPath(rightImageXPath)
     console.log('Right side images found:', rightImages.length)
     
@@ -125,7 +125,7 @@ function ScanDialog() {
     const images: string[] = []
 
     // 获取左侧页面图片
-    const leftXPath = "//div[@id='bookContainer']//div[@class='left-mask-side']//div[@class='side-image']/img"
+    const leftXPath = "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
     const leftImgs = getElementsByXPath(leftXPath)
     if (leftImgs.length > 0) {
       const src = (leftImgs[0] as HTMLImageElement).src
@@ -136,7 +136,7 @@ function ScanDialog() {
     }
 
     // 获取右侧页面图片
-    const rightXPath = "//div[@id='bookContainer']//div[@class='right-mask-side']//div[@class='side-image']/img"
+    const rightXPath = "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
     const rightImgs = getElementsByXPath(rightXPath)
     if (rightImgs.length > 0) {
       const src = (rightImgs[0] as HTMLImageElement).src
@@ -185,8 +185,8 @@ function ScanDialog() {
   }
 
   // 扫描所有页面
-  async function scanAllPages(scanSpeed: number = 3000) {  // 默认最慢档
-    console.log('🚀 Starting scan...')
+  async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false) {
+    console.log(continueScanning ? '▶️ Continuing scan...' : '🚀 Starting scan...')
     console.log(`⚙️ Scan speed: ${scanSpeed}ms`)
 
     shouldStopRef.current = false
@@ -199,7 +199,7 @@ function ScanDialog() {
     if (!isReady) {
       console.log('❌ Page not ready, aborting scan')
       message.error('Page not ready after 10 seconds')
-      setScanState(prev => ({ ...prev, isScanning: false }))
+      setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
       return
     }
 
@@ -210,30 +210,35 @@ function ScanDialog() {
     if (totalPages === 0) {
       console.log('❌ Cannot detect total pages, aborting scan')
       message.error('Cannot detect total pages')
-      setScanState(prev => ({ ...prev, isScanning: false }))
+      setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
       return
     }
 
-    const allImages: string[] = []
-    let currentPage = 0
+    // 继续扫描则使用已有的图片数组，否则从头开始
+    const allImages: string[] = continueScanning ? [...scanState.scannedImages] : []
+    let flipCount = continueScanning ? Math.ceil((allImages.length - 1) / 2) : 0  // 计算已翻页次数
 
-    // 获取第一页的图片
-    console.log(`\n📖 Scanning page ${currentPage + 1}/${totalPages}...`)
-    const firstPageImages = getCurrentPageImages()
-    allImages.push(...firstPageImages)
+    // 如果不是继续扫描，获取第一页的图片
+    if (!continueScanning) {
+      console.log(`\n📖 Scanning first page, collected images: ${allImages.length}/${totalPages}...`)
+      const firstPageImages = getCurrentPageImages()
+      allImages.push(...firstPageImages)
 
-    // 更新状态
-    setScanState(prev => ({
-      ...prev,
-      currentPage: currentPage + 1,
-      scannedImages: [...allImages]
-    }))
+      // 更新状态
+      setScanState(prev => ({
+        ...prev,
+        currentPage: allImages.length,
+        scannedImages: [...allImages]
+      }))
 
-    currentPage++
+      flipCount++
+    } else {
+      console.log(`\n▶️ Continuing from image ${allImages.length}/${totalPages}...`)
+    }
 
     // 扫描剩余页面
-    while (currentPage < totalPages && currentPage < MAX_PAGES && !shouldStopRef.current) {
-      console.log(`\n📖 Scanning page ${currentPage + 1}/${totalPages}...`)
+    while (allImages.length < totalPages && flipCount < MAX_PAGES && !shouldStopRef.current) {
+      console.log(`\n📖 Flipping page ${flipCount + 1}, collected images: ${allImages.length}/${totalPages}...`)
 
       // 点击下一页
       const clicked = clickNextPage()
@@ -249,36 +254,44 @@ function ScanDialog() {
       const pageImages = getCurrentPageImages()
       if (pageImages.length > 0) {
         allImages.push(...pageImages)
-        console.log(`  ✅ Collected ${pageImages.length} image(s) from page ${currentPage + 1}`)
+        console.log(`  ✅ Collected ${pageImages.length} image(s), total: ${allImages.length}/${totalPages}`)
 
         // 更新状态
         setScanState(prev => ({
           ...prev,
-          currentPage: currentPage + 1,
+          currentPage: allImages.length,
           scannedImages: [...allImages]
         }))
       } else {
-        console.log(`  ⚠️ No images found on page ${currentPage + 1}`)
+        console.log(`  ⚠️ No images found after flip ${flipCount + 1}`)
       }
 
-      currentPage++
+      flipCount++
     }
 
-    // 扫描完成
-    const isComplete = !shouldStopRef.current
+    // 扫描完成或暂停
+    const isComplete = allImages.length >= totalPages
+    const isPaused = shouldStopRef.current && !isComplete
 
-    console.log(`\n✨ Scan ${isComplete ? 'completed' : 'stopped'}!`)
+    console.log(`\n✨ Scan ${isComplete ? 'completed' : isPaused ? 'paused' : 'stopped'}!`)
     console.log(`📊 Total images collected: ${allImages.length}`)
-    console.log(`📄 Pages scanned: ${currentPage}/${totalPages}`)
+    console.log(`📄 Total flips: ${flipCount}, Images: ${allImages.length}/${totalPages}`)
 
     setScanState(prev => ({
       ...prev,
       isScanning: false,
+      isPaused,
       isComplete,
       scannedImages: [...allImages]
     }))
 
-    message.success(`Scan ${isComplete ? 'completed' : 'stopped'}! ${allImages.length} images collected.`)
+    if (isComplete) {
+      message.success(`Scan completed! ${allImages.length} images collected.`)
+    } else if (isPaused) {
+      message.info(`Scan paused. ${allImages.length} images collected.`)
+    } else {
+      message.warning(`Scan stopped. ${allImages.length} images collected.`)
+    }
   }
 
   // ========== 事件处理 ==========
@@ -327,7 +340,7 @@ function ScanDialog() {
     }
   }, [scanState.scannedImages.length, scanState.isScanning])
 
-  // 开始扫描
+  // 开始扫描（首次扫描）
   const handleStartScan = () => {
     console.log('🚀 Starting scan from dialog...')
     
@@ -342,14 +355,27 @@ function ScanDialog() {
     }))
 
     // 开始扫描
-    scanAllPages(3000)  // 使用最慢档速度
+    scanAllPages(3000, false)  // 使用最慢档速度，从头开始
   }
 
-  // 停止扫描
-  const handleStopScan = () => {
-    console.log('🛑 Stopping scan from dialog...')
+  // 继续扫描
+  const handleContinueScan = () => {
+    console.log('▶️ Continuing scan from dialog...')
+    
+    setScanState(prev => ({
+      ...prev,
+      isScanning: true,
+      isPaused: false,
+    }))
+
+    // 继续扫描（不清空数组）
+    scanAllPages(3000, true)
+  }
+
+  // 暂停扫描
+  const handlePauseScan = () => {
+    console.log('⏸️ Pausing scan from dialog...')
     shouldStopRef.current = true
-    setScanState(prev => ({ ...prev, isScanning: false }))
   }
 
   // 下载 PDF
@@ -440,7 +466,12 @@ function ScanDialog() {
           <Flex vertical gap="small" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Text>Current Page: {scanState.currentPage}</Text>
-              <Text>{scanState.isComplete ? 'Scan Complete' : scanState.isScanning ? 'Scanning...' : 'Ready'}</Text>
+              <Text>
+                {scanState.isComplete ? 'Scan Complete' : 
+                 scanState.isScanning ? 'Scanning...' : 
+                 scanState.isPaused ? 'Paused' : 
+                 'Ready'}
+              </Text>
             </div>
             <Progress
               percent={scanState.totalPages > 0 ? Math.round((scanState.currentPage / scanState.totalPages) * 100) : 0}
@@ -451,7 +482,8 @@ function ScanDialog() {
 
         {/* Control Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
-          {(!scanState.isScanning && !scanState.isComplete) && (
+          {/* 初始状态：Start Scan */}
+          {(!scanState.isScanning && !scanState.isPaused && !scanState.isComplete) && (
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
@@ -462,14 +494,39 @@ function ScanDialog() {
             </Button>
           )}
 
+          {/* 扫描中：Pause Scan */}
           {scanState.isScanning && (
             <Button
-              danger
+              type="primary"
               icon={<PauseCircleOutlined />}
-              onClick={handleStopScan}
+              onClick={handlePauseScan}
               size="large"
             >
-              Stop Scan
+              Pause Scan
+            </Button>
+          )}
+
+          {/* 暂停后：Continue Scan (outline样式) */}
+          {(!scanState.isScanning && scanState.isPaused && !scanState.isComplete) && (
+            <Button
+              type="default"
+              icon={<PlayCircleOutlined />}
+              onClick={handleContinueScan}
+              size="large"
+            >
+              Continue Scan
+            </Button>
+          )}
+
+          {/* 完成后：Completed (灰化不可点击) */}
+          {scanState.isComplete && (
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              disabled
+              size="large"
+            >
+              Completed
             </Button>
           )}
 

@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { ConfigProvider } from "antd"
 import { logInfo } from "./utils/misc"
 import ScanControl from "./components/ScanControl"
+import "./popup.css"
 
 function IndexPopup() {
   useEffect(() => {
@@ -14,7 +15,8 @@ function IndexPopup() {
         width: "400px",
         minHeight: "300px",
         background: "#ffffff",
-        padding: "16px"
+        overflow: "hidden",
+        borderRadius: "0"
       }}>
         <ScanControl />
       </div>
