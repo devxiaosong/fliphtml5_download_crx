@@ -30,7 +30,7 @@ function addWatermarkToCanvas(
   
   // 设置水印样式
   ctx.font = `${fontSize}px sans-serif`
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.30)'  // 15% 不透明度
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'  // 15% 不透明度
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   
