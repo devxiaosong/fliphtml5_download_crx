@@ -5,9 +5,7 @@
   "description": "Download FlipHTML5 flipbooks to high-quality PDF. A fast and easy flipbook to PDF converter for offline reading.",
   "scripts": {
     "dev": "plasmo dev",
-    "dev:firefox": "plasmo dev --target=firefox-mv2",
     "build": "plasmo build",
-    "build:firefox": "plasmo build --target=firefox-mv2",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

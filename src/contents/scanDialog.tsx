@@ -4,7 +4,6 @@ import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card,
 import type { MenuProps } from "antd"
 import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
 import { generatePDF, downloadPDF, type PDFOrientation } from "../utils/pdfGenerator"
-import "./scanDialog.css"
 
 const { Text } = Typography
 
