@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf'
+import { PDFDocument, rgb } from 'pdf-lib'
 
 export type PDFOrientation = 'portrait' | 'landscape' | 'square'
 
@@ -116,11 +116,14 @@ export async function generatePDF(
   const pageSize = PAGE_SIZES[orientation]
   
   // 创建 PDF 文档
-  const pdf = new jsPDF({
-    orientation: orientation === 'square' ? 'portrait' : orientation,
-    unit: 'mm',
-    format: [pageSize.width, pageSize.height]
-  })
+  const pdfDoc = await PDFDocument.create()
+
+  // 设置 PDF 元数据
+  pdfDoc.setTitle(title || 'FlipHTML5 Download')
+  pdfDoc.setSubject('Downloaded from FlipHTML5')
+  pdfDoc.setAuthor('FlipHTML5 Downloader')
+  pdfDoc.setCreator('FlipHTML5 Downloader Extension')
+  pdfDoc.setProducer('pdf-lib')
 
   console.log(`Generating PDF with ${imageUrls.length} images...`)
   console.log(`Page size: ${pageSize.width}mm x ${pageSize.height}mm`)
@@ -135,16 +138,26 @@ export async function generatePDF(
       const canvas = await imageToCanvas(imageUrls[i], addWatermark)
       const imgData = canvas.toDataURL('image/jpeg', 0.95)
       
-      // 如果不是第一页，添加新页
-      if (i > 0) {
-        pdf.addPage([pageSize.width, pageSize.height])
-      }
+      // 将 base64 转换为 Uint8Array
+      const base64Data = imgData.split(',')[1]
+      const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+      
+      // 嵌入图片到 PDF
+      const image = await pdfDoc.embedJpg(imageBytes)
+      
+      // 转换 mm 到 points (1mm = 2.83465 points)
+      const mmToPoints = (mm: number) => mm * 2.83465
+      const pageWidth = mmToPoints(pageSize.width)
+      const pageHeight = mmToPoints(pageSize.height)
+      
+      // 创建新页面
+      const page = pdfDoc.addPage([pageWidth, pageHeight])
       
       // 计算图片在页面上的尺寸（保持比例，适应页面）
-      const imgWidth = canvas.width
-      const imgHeight = canvas.height
+      const imgWidth = image.width
+      const imgHeight = image.height
       const imgRatio = imgWidth / imgHeight
-      const pageRatio = pageSize.width / pageSize.height
+      const pageRatio = pageWidth / pageHeight
       
       let finalWidth: number
       let finalHeight: number
@@ -153,20 +166,25 @@ export async function generatePDF(
       
       if (imgRatio > pageRatio) {
         // 图片更宽，以宽度为准
-        finalWidth = pageSize.width
-        finalHeight = pageSize.width / imgRatio
+        finalWidth = pageWidth
+        finalHeight = pageWidth / imgRatio
         x = 0
-        y = (pageSize.height - finalHeight) / 2
+        y = (pageHeight - finalHeight) / 2
       } else {
         // 图片更高，以高度为准
-        finalHeight = pageSize.height
-        finalWidth = pageSize.height * imgRatio
-        x = (pageSize.width - finalWidth) / 2
+        finalHeight = pageHeight
+        finalWidth = pageHeight * imgRatio
+        x = (pageWidth - finalWidth) / 2
         y = 0
       }
       
-      // 添加图片到 PDF
-      pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight)
+      // 添加图片到页面
+      page.drawImage(image, {
+        x,
+        y,
+        width: finalWidth,
+        height: finalHeight
+      })
       
     } catch (error) {
       console.error(`Failed to process image ${i + 1}:`, error)
@@ -174,18 +192,11 @@ export async function generatePDF(
     }
   }
 
-  // 设置 PDF 元数据
-  pdf.setProperties({
-    title: title || 'FlipHTML5 Download',
-    subject: 'Downloaded from FlipHTML5',
-    author: 'FlipHTML5 Downloader',
-    creator: 'FlipHTML5 Downloader Extension'
-  })
-
   console.log('PDF generation complete')
 
   // 返回 PDF Blob
-  return pdf.output('blob')
+  const pdfBytes = await pdfDoc.save()
+  return new Blob([pdfBytes], { type: 'application/pdf' })
 }
 
 // 下载 PDF 文件
