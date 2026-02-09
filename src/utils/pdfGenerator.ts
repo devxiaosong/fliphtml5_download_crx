@@ -1,5 +1,3 @@
-import { PDFDocument, rgb } from 'pdf-lib'
-
 export type PDFOrientation = 'portrait' | 'landscape' | 'square'
 
 interface PDFOptions {
@@ -8,11 +6,11 @@ interface PDFOptions {
   title?: string
 }
 
-// PDF 页面尺寸（单位：mm）
+// PDF 页面尺寸（单位：points, 1mm = 2.83465 points）
 const PAGE_SIZES = {
-  portrait: { width: 210, height: 297 },    // A4 纵向
-  landscape: { width: 297, height: 210 },   // A4 横向
-  square: { width: 210, height: 210 }       // 正方形
+  portrait: { width: 595, height: 842 },    // A4 纵向 (210x297mm)
+  landscape: { width: 842, height: 595 },   // A4 横向
+  square: { width: 595, height: 595 }       // 正方形
 }
 
 // 添加水印到canvas
@@ -21,38 +19,27 @@ function addWatermarkToCanvas(
   ctx: CanvasRenderingContext2D
 ): void {
   const text = 'Source: FlipHTML5 | Non-Commercial Authorization | Redistribution and Resale Are Strictly Prohibited'
-  const fontSize = 96  // 字号
-  const lineHeight = 144  // 行间距
-  const angle = -45  // 旋转角度
+  const fontSize = 96
+  const lineHeight = 144
+  const angle = -45
   
-  // 保存当前状态
   ctx.save()
-  
-  // 设置水印样式
   ctx.font = `${fontSize}px sans-serif`
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'  // 15% 不透明度
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   
-  // 测量文本宽度
   const textWidth = ctx.measureText(text).width
-  
-  // 计算旋转后需要覆盖的范围
   const diagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
   
-  // 移动到画布中心
   ctx.translate(canvas.width / 2, canvas.height / 2)
-  
-  // 旋转
   ctx.rotate(angle * Math.PI / 180)
   
-  // 计算需要绘制的行数和列数，确保铺满整个画布
   const rowSpacing = lineHeight
-  const colSpacing = textWidth + 100  // 列间距
+  const colSpacing = textWidth + 100
   const numRows = Math.ceil(diagonal / rowSpacing) + 2
   const numCols = Math.ceil(diagonal / colSpacing) + 2
   
-  // 在旋转后的空间中绘制水印网格
   for (let row = -numRows; row <= numRows; row++) {
     for (let col = -numCols; col <= numCols; col++) {
       const x = col * colSpacing
@@ -61,15 +48,14 @@ function addWatermarkToCanvas(
     }
   }
   
-  // 恢复状态
   ctx.restore()
 }
 
-// 加载图片为 Image 对象
+// 加载图片
 async function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous' // 允许跨域
+    img.crossOrigin = 'anonymous'
     img.onload = () => resolve(img)
     img.onerror = reject
     img.src = url
@@ -92,15 +78,131 @@ async function imageToCanvas(
     throw new Error('Failed to get canvas context')
   }
   
-  // 绘制原图
   ctx.drawImage(img, 0, 0)
   
-  // 添加水印
   if (addWatermark) {
     addWatermarkToCanvas(canvas, ctx)
   }
   
   return canvas
+}
+
+// 简单的 PDF 生成器类
+class SimplePDFGenerator {
+  private objects: string[] = []
+  private objectOffsets: number[] = []
+  private content: string = ''
+  
+  private objectId = 0
+  private pageIds: number[] = []
+  private imageIds: number[] = []
+  
+  constructor(
+    private pageWidth: number,
+    private pageHeight: number,
+    private title: string = 'Document'
+  ) {
+    this.content = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'
+  }
+  
+  private addObject(obj: string): number {
+    this.objectOffsets.push(this.content.length)
+    const id = ++this.objectId
+    this.content += `${id} 0 obj\n${obj}\nendobj\n`
+    return id
+  }
+  
+  async addImagePage(imageDataUrl: string): Promise<void> {
+    // 从 data URL 提取 JPEG 数据
+    const base64Data = imageDataUrl.split(',')[1]
+    const imageData = atob(base64Data)
+    
+    // 获取图片尺寸
+    const img = new Image()
+    img.src = imageDataUrl
+    await new Promise(resolve => { img.onload = resolve })
+    
+    const imgWidth = img.width
+    const imgHeight = img.height
+    
+    // 计算适应页面的尺寸
+    const imgRatio = imgWidth / imgHeight
+    const pageRatio = this.pageWidth / this.pageHeight
+    
+    let finalWidth: number, finalHeight: number, x: number, y: number
+    
+    if (imgRatio > pageRatio) {
+      finalWidth = this.pageWidth
+      finalHeight = this.pageWidth / imgRatio
+      x = 0
+      y = (this.pageHeight - finalHeight) / 2
+    } else {
+      finalHeight = this.pageHeight
+      finalWidth = this.pageHeight * imgRatio
+      x = (this.pageWidth - finalWidth) / 2
+      y = 0
+    }
+    
+    // 创建图片对象
+    const imageId = this.addObject(
+      `<<\n/Type /XObject\n/Subtype /Image\n/Width ${imgWidth}\n/Height ${imgHeight}\n/ColorSpace /DeviceRGB\n/BitsPerComponent 8\n/Filter /DCTDecode\n/Length ${imageData.length}\n>>\nstream\n${imageData}\nendstream`
+    )
+    this.imageIds.push(imageId)
+    
+    // 创建页面内容流
+    const contentStream = `q\n${finalWidth.toFixed(2)} 0 0 ${finalHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im${imageId} Do\nQ`
+    const contentId = this.addObject(
+      `<<\n/Length ${contentStream.length}\n>>\nstream\n${contentStream}\nendstream`
+    )
+    
+    // 创建页面对象
+    const pageId = this.addObject(
+      `<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n/XObject << /Im${imageId} ${imageId} 0 R >>\n>>\n/MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}]\n/Contents ${contentId} 0 R\n>>`
+    )
+    this.pageIds.push(pageId)
+  }
+  
+  generate(): Blob {
+    // 创建 Pages 对象
+    const pagesId = this.addObject(
+      `<<\n/Type /Pages\n/Kids [${this.pageIds.map(id => `${id} 0 R`).join(' ')}]\n/Count ${this.pageIds.length}\n>>`
+    )
+    
+    // 创建 Catalog 对象
+    const catalogId = this.addObject(
+      `<<\n/Type /Catalog\n/Pages ${pagesId} 0 R\n>>`
+    )
+    
+    // 创建 Info 对象
+    const infoId = this.addObject(
+      `<<\n/Title (${this.title})\n/Producer (FlipHTML5 Downloader)\n/Creator (FlipHTML5 Downloader Extension)\n>>`
+    )
+    
+    // 创建 cross-reference table
+    const xrefOffset = this.content.length
+    this.content += 'xref\n'
+    this.content += `0 ${this.objectId + 1}\n`
+    this.content += '0000000000 65535 f \n'
+    
+    for (const offset of this.objectOffsets) {
+      this.content += `${offset.toString().padStart(10, '0')} 00000 n \n`
+    }
+    
+    // 创建 trailer
+    this.content += 'trailer\n'
+    this.content += `<<\n/Size ${this.objectId + 1}\n/Root ${catalogId} 0 R\n/Info ${infoId} 0 R\n>>\n`
+    this.content += 'startxref\n'
+    this.content += `${xrefOffset}\n`
+    this.content += '%%EOF'
+    
+    // 转换为 Blob
+    const bytes = new Uint8Array(this.content.length)
+    for (let i = 0; i < this.content.length; i++) {
+      bytes[i] = this.content.charCodeAt(i)
+    }
+    
+    return new Blob([bytes], { type: 'application/pdf' })
+  }
 }
 
 // 生成 PDF
@@ -115,88 +217,31 @@ export async function generatePDF(
   const { orientation, addWatermark, title } = options
   const pageSize = PAGE_SIZES[orientation]
   
-  // 创建 PDF 文档
-  const pdfDoc = await PDFDocument.create()
-
-  // 设置 PDF 元数据
-  pdfDoc.setTitle(title || 'FlipHTML5 Download')
-  pdfDoc.setSubject('Downloaded from FlipHTML5')
-  pdfDoc.setAuthor('FlipHTML5 Downloader')
-  pdfDoc.setCreator('FlipHTML5 Downloader Extension')
-  pdfDoc.setProducer('pdf-lib')
-
   console.log(`Generating PDF with ${imageUrls.length} images...`)
-  console.log(`Page size: ${pageSize.width}mm x ${pageSize.height}mm`)
+  console.log(`Page size: ${pageSize.width}x${pageSize.height} points`)
   console.log(`Watermark: ${addWatermark ? 'Yes' : 'No'}`)
+
+  const pdf = new SimplePDFGenerator(
+    pageSize.width,
+    pageSize.height,
+    title || 'FlipHTML5 Download'
+  )
 
   // 逐页添加图片
   for (let i = 0; i < imageUrls.length; i++) {
     console.log(`Processing image ${i + 1}/${imageUrls.length}...`)
     
     try {
-      // 转换图片（可能添加水印）
       const canvas = await imageToCanvas(imageUrls[i], addWatermark)
-      const imgData = canvas.toDataURL('image/jpeg', 0.95)
-      
-      // 将 base64 转换为 Uint8Array
-      const base64Data = imgData.split(',')[1]
-      const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
-      
-      // 嵌入图片到 PDF
-      const image = await pdfDoc.embedJpg(imageBytes)
-      
-      // 转换 mm 到 points (1mm = 2.83465 points)
-      const mmToPoints = (mm: number) => mm * 2.83465
-      const pageWidth = mmToPoints(pageSize.width)
-      const pageHeight = mmToPoints(pageSize.height)
-      
-      // 创建新页面
-      const page = pdfDoc.addPage([pageWidth, pageHeight])
-      
-      // 计算图片在页面上的尺寸（保持比例，适应页面）
-      const imgWidth = image.width
-      const imgHeight = image.height
-      const imgRatio = imgWidth / imgHeight
-      const pageRatio = pageWidth / pageHeight
-      
-      let finalWidth: number
-      let finalHeight: number
-      let x: number
-      let y: number
-      
-      if (imgRatio > pageRatio) {
-        // 图片更宽，以宽度为准
-        finalWidth = pageWidth
-        finalHeight = pageWidth / imgRatio
-        x = 0
-        y = (pageHeight - finalHeight) / 2
-      } else {
-        // 图片更高，以高度为准
-        finalHeight = pageHeight
-        finalWidth = pageHeight * imgRatio
-        x = (pageWidth - finalWidth) / 2
-        y = 0
-      }
-      
-      // 添加图片到页面
-      page.drawImage(image, {
-        x,
-        y,
-        width: finalWidth,
-        height: finalHeight
-      })
-      
+      const imgData = canvas.toDataURL('image/jpeg', 0.92)
+      await pdf.addImagePage(imgData)
     } catch (error) {
       console.error(`Failed to process image ${i + 1}:`, error)
-      // 继续处理其他图片
     }
   }
 
   console.log('PDF generation complete')
-
-  // 返回 PDF Blob
-  const pdfBytes = await pdfDoc.save()
-  return new Blob([pdfBytes], { type: 'application/pdf' })
+  return pdf.generate()
 }
 
 // 下载 PDF 文件

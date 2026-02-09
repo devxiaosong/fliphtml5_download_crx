@@ -27,7 +27,6 @@
     "@ant-design/icons": "^6.1.0",
     "@supabase/supabase-js": "^2.93.3",
     "antd": "^6.2.3",
-    "pdf-lib": "^1.17.1",
     "plasmo": "^0.90.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
