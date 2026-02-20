@@ -4,6 +4,7 @@ interface PDFOptions {
   orientation: PDFOrientation
   addWatermark: boolean
   title?: string
+  homepage?: string
 }
 
 // PDF 页面尺寸（单位：points, 1mm = 2.83465 points）
@@ -96,13 +97,22 @@ class SimplePDFGenerator {
   private objectId = 0
   private pageIds: number[] = []
   private imageIds: number[] = []
+  private fontId: number = 0
   
   constructor(
     private pageWidth: number,
     private pageHeight: number,
-    private title: string = 'Document'
+    private title: string = 'Document',
+    private homepage?: string
   ) {
     this.content = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'
+    
+    // 如果有 homepage，添加字体对象
+    if (this.homepage) {
+      this.fontId = this.addObject(
+        `<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>`
+      )
+    }
   }
   
   private addObject(obj: string): number {
@@ -150,14 +160,48 @@ class SimplePDFGenerator {
     this.imageIds.push(imageId)
     
     // 创建页面内容流
-    const contentStream = `q\n${finalWidth.toFixed(2)} 0 0 ${finalHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im${imageId} Do\nQ`
+    let contentStream = `q\n${finalWidth.toFixed(2)} 0 0 ${finalHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im${imageId} Do\nQ`
+    
+    // 如果有 homepage，在底部添加链接文本
+    let linkAnnotId: number | null = null
+    if (this.homepage && this.fontId) {
+      const linkText = 'Download any FlipHTML5 as PDF - Click here'
+      const fontSize = 20
+      
+      // 估算文本宽度（Helvetica字体大约是字号的0.5倍）
+      const textWidth = linkText.length * fontSize * 0.5
+      
+      // 计算右下角位置（右对齐）
+      const textX = this.pageWidth - textWidth - 10  // 距离右边10个单位
+      const textY = 10  // 距离底边10个单位
+      
+      // 添加文本绘制命令（蓝色，表示链接）
+      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${textX} ${textY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
+      
+      // 创建 URI Action
+      const actionId = this.addObject(
+        `<<\n/S /URI\n/URI (${this.homepage})\n>>`
+      )
+      
+      // 创建 Link Annotation（覆盖整个文本区域）
+      linkAnnotId = this.addObject(
+        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${textX} ${textY} ${textX + textWidth} ${textY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
+      )
+    }
+    
     const contentId = this.addObject(
       `<<\n/Length ${contentStream.length}\n>>\nstream\n${contentStream}\nendstream`
     )
     
     // 创建页面对象
+    const resourcesDict = this.homepage && this.fontId 
+      ? `/XObject << /Im${imageId} ${imageId} 0 R >>\n/Font << /F1 ${this.fontId} 0 R >>`
+      : `/XObject << /Im${imageId} ${imageId} 0 R >>`
+    
+    const annotsRef = linkAnnotId ? `/Annots [${linkAnnotId} 0 R]\n` : ''
+    
     const pageId = this.addObject(
-      `<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n/XObject << /Im${imageId} ${imageId} 0 R >>\n>>\n/MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}]\n/Contents ${contentId} 0 R\n>>`
+      `<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n${resourcesDict}\n>>\n/MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}]\n/Contents ${contentId} 0 R\n${annotsRef}>>`
     )
     this.pageIds.push(pageId)
   }
@@ -214,17 +258,19 @@ export async function generatePDF(
     throw new Error('No images to generate PDF')
   }
 
-  const { orientation, addWatermark, title } = options
+  const { orientation, addWatermark, title, homepage } = options
   const pageSize = PAGE_SIZES[orientation]
   
   console.log(`Generating PDF with ${imageUrls.length} images...`)
   console.log(`Page size: ${pageSize.width}x${pageSize.height} points`)
   console.log(`Watermark: ${addWatermark ? 'Yes' : 'No'}`)
+  console.log(`Homepage: ${homepage || 'None'}`)
 
   const pdf = new SimplePDFGenerator(
     pageSize.width,
     pageSize.height,
-    title || 'FlipHTML5 Download'
+    title || 'FlipHTML5 Download',
+    homepage
   )
 
   // 逐页添加图片

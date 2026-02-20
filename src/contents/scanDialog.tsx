@@ -6,7 +6,7 @@ import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutl
 import { generatePDF, downloadPDF } from "../utils/pdfGenerator"
 import type { PDFOrientation } from "../utils/pdfGenerator"
 import { getElementByXPath, getElementsByXPath, clickElementByXPath, getInputValueByXPath } from "../utils/domHelpers"
-import { logInfo } from "../utils/misc"
+import { logInfo, getAppInfo } from "../utils/misc"
 
 const { Text } = Typography
 
@@ -36,16 +36,16 @@ export const config: PlasmoCSConfig = {
   css: ["scanDialog.css"]
 }
 
-const MAX_PAGES = 500
-
-const XPATH = {
-  pageInput: "//div[@class='pageNumber']/label/input",
-  nextButton: "//div[@class='flip_button_right button']",
-  leftPageImage:
-    "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img",
-  rightPageImage:
-    "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
-} as const
+// 定义 FlipHTML5 规则类型
+interface FlipHTML5Rules {
+  maxPages: number
+  baseUrl: string
+  homepage: string
+  pageInput: string
+  nextButton: string
+  leftPageImage: string
+  rightPageImage: string
+}
 
 interface ScanState {
   isScanning: boolean
@@ -59,6 +59,7 @@ interface ScanState {
 
 function ScanDialog() {
   const [visible, setVisible] = useState(false)
+  const [loading, setLoading] = useState(true)  // 全局加载状态
   const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape' | 'square'>('portrait')
   const [scanState, setScanState] = useState<ScanState>({
     isScanning: false,
@@ -72,17 +73,22 @@ function ScanDialog() {
 
   const shouldStopRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)  // 滚动容器引用
+  const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)  // FlipHTML5 规则引用，初始为 null
 
   // ========== 扫描逻辑 ==========
 
   // 检查页面是否准备完成（持续监控直到准备完成）
   async function checkPageReady() {
+    if (!fliphtml5RulesRef.current) {
+      return false
+    }
+    
     setScanState(prev => ({ ...prev, isPageReady: false }))
 
     // 持续检查直到页面准备完成，无超时限制
     let isReady = false
     while (!isReady) {
-      const element = getElementByXPath(XPATH.nextButton) as HTMLElement
+      const element = getElementByXPath(fliphtml5RulesRef.current.nextButton) as HTMLElement
       if (element && element.offsetWidth > 0 && element.offsetHeight > 0) {
         isReady = true
         setScanState(prev => ({ ...prev, isPageReady: true }))
@@ -98,8 +104,12 @@ function ScanDialog() {
 
   // 获取总页数
   function getTotalPages(): number {
+    if (!fliphtml5RulesRef.current) {
+      return 0
+    }
+    
     // 从 input 元素的 value 中解析总页数
-    const value = getInputValueByXPath(XPATH.pageInput)
+    const value = getInputValueByXPath(fliphtml5RulesRef.current.pageInput)
 
     if (value) {
       // 解析 "16-17/92" 或 "1/92" 格式，提取斜杠后面的数字
@@ -117,10 +127,14 @@ function ScanDialog() {
 
   // 获取当前页面的图片
   function getCurrentPageImages(): string[] {
+    if (!fliphtml5RulesRef.current) {
+      return []
+    }
+    
     const images: string[] = []
 
     // 获取左侧页面图片
-    const leftImgs = getElementsByXPath(XPATH.leftPageImage)
+    const leftImgs = getElementsByXPath(fliphtml5RulesRef.current.leftPageImage)
     if (leftImgs.length > 0) {
       const src = (leftImgs[0] as HTMLImageElement).src
       if (src) {
@@ -129,7 +143,7 @@ function ScanDialog() {
     }
 
     // 获取右侧页面图片
-    const rightImgs = getElementsByXPath(XPATH.rightPageImage)
+    const rightImgs = getElementsByXPath(fliphtml5RulesRef.current.rightPageImage)
     if (rightImgs.length > 0) {
       const src = (rightImgs[0] as HTMLImageElement).src
       if (src) {
@@ -142,12 +156,22 @@ function ScanDialog() {
 
   // 点击下一页按钮
   function clickNextPage(): boolean {
-    const clicked = clickElementByXPath(XPATH.nextButton)
+    if (!fliphtml5RulesRef.current) {
+      return false
+    }
+    
+    const clicked = clickElementByXPath(fliphtml5RulesRef.current.nextButton)
+    const pageInfo = getPageInfo()
     return clicked
   }
 
   // 扫描所有页面
   async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false, totalPages?: number) {
+    if (!fliphtml5RulesRef.current) {
+      message.error('Configuration not loaded. Please refresh the page.')
+      return
+    }
+    
     shouldStopRef.current = false
     const pageInfo = getPageInfo()
 
@@ -160,7 +184,7 @@ function ScanDialog() {
       return
     }
     
-    logInfo('start', `speed: ${scanSpeed}ms, continue: ${continueScanning}, total: ${pagesToScan}) | ${pageInfo}`)
+    logInfo('scan', `Scan started (speed: ${scanSpeed}ms, continue: ${continueScanning}, total: ${pagesToScan}) | ${pageInfo}`)
 
     // 继续扫描则使用已有的图片数组，否则从头开始
     const allImages: string[] = continueScanning ? [...scanState.scannedImages] : []
@@ -182,7 +206,7 @@ function ScanDialog() {
     }
 
     // 扫描剩余页面
-    while (allImages.length < pagesToScan && flipCount < MAX_PAGES && !shouldStopRef.current) {
+    while (allImages.length < pagesToScan && flipCount < fliphtml5RulesRef.current.maxPages && !shouldStopRef.current) {
 
       // 点击下一页
       const clicked = clickNextPage()
@@ -262,12 +286,33 @@ function ScanDialog() {
     checkPageReady()
   }, [])
 
-  // 页面加载时自动打开对话框（如果 URL 匹配）
+  // 页面加载时先加载配置，然后打开对话框
   useEffect(() => {
-    const currentUrl = window.location.href
-    if (currentUrl.startsWith('https://online.fliphtml5.com/')) {
-      openScanDialog()
+    const initializeApp = async () => {
+      const pageInfo = getPageInfo()
+      setLoading(true)
+      
+      try {
+        // 调用 getAppInfo 获取应用信息
+        const appInfo = await getAppInfo()
+        
+        if (!appInfo || !(appInfo as any).fliphtml5_rules) {
+          throw new Error('fliphtml5_rules not found in appInfo')
+        }
+        
+        // 从 appInfo 中提取并设置 fliphtml5_rules
+        fliphtml5RulesRef.current = (appInfo as any).fliphtml5_rules
+        
+        setLoading(false)
+        openScanDialog()
+
+      } catch (error) {
+        setLoading(false)
+        message.error('Failed to load application configuration. Please refresh the page.')
+      }
     }
+    
+    initializeApp()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 只在组件挂载时运行一次
 
@@ -275,6 +320,10 @@ function ScanDialog() {
   useEffect(() => {
     const handleMessage = (request: any) => {
       if (request.action === 'showScanDialog') {
+        if (!fliphtml5RulesRef.current) {
+          message.warning('Please wait, loading configuration...')
+          return
+        }
         openScanDialog()
       }
     }
@@ -344,21 +393,22 @@ function ScanDialog() {
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
     const pageInfo = getPageInfo()
-    
+        
     if (scanState.scannedImages.length === 0) {
       message.error('No images to download. Please scan first.')
       return
     }
 
     const imagesToUse = scanState.scannedImages
-    logInfo('start download', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}) | ${pageInfo}`)
+    const homepage = fliphtml5RulesRef.current?.homepage || ''
 
     try {
       const hide = message.loading('Generating PDF...', 0)
 
       const pdf = await generatePDF(imagesToUse, {
         orientation,
-        addWatermark: true  // 始终添加水印
+        addWatermark: true,  // 始终添加水印
+        homepage  // 添加底部链接
       })
 
       downloadPDF(pdf, `fliphtml5_ebook_${orientation}.pdf`)
@@ -419,6 +469,42 @@ function ScanDialog() {
 
   return (
     <ConfigProvider>
+      {/* 全局 Loading */}
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '40px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+          }}>
+            <div style={{ marginBottom: '20px' }}>
+              <div className="loading-spinner" style={{
+                width: '48px',
+                height: '48px',
+                border: '4px solid #f3f3f3',
+                borderTop: '4px solid #1890ff',
+                borderRadius: '50%',
+                margin: '0 auto'
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Modal
         title="FlipHTML5 Scanner"
         open={visible}
