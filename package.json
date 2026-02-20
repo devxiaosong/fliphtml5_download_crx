@@ -5,7 +5,14 @@
   "description": "Download FlipHTML5 flipbooks to high-quality PDF. A fast and easy flipbook to PDF converter for offline reading.",
   "scripts": {
     "dev": "plasmo dev",
+    "dev:chrome": "plasmo dev --target=chrome-mv3",
+    "dev:firefox": "plasmo dev --target=firefox-mv3",
+    "dev:edge": "plasmo dev --target=edge-mv3",
     "build": "plasmo build",
+    "build:chrome": "plasmo build --target=chrome-mv3",
+    "build:firefox": "plasmo build --target=firefox-mv3",
+    "build:edge": "plasmo build --target=edge-mv3",
+    "build:all": "npm run build:chrome && npm run build:firefox && npm run build:edge",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -31,6 +38,7 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.1.36",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "sharp-cli": "^5.2.0",

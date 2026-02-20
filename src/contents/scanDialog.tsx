@@ -1,9 +1,10 @@
 import type { PlasmoCSConfig } from "plasmo"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card, message, Dropdown } from "antd"
 import type { MenuProps } from "antd"
 import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
 import { generatePDF, downloadPDF, type PDFOrientation } from "../utils/pdfGenerator"
+import { getElementByXPath, getElementsByXPath, clickElementByXPath, getInputValueByXPath } from "../utils/domHelpers"
 
 const { Text } = Typography
 
@@ -16,9 +17,19 @@ export const config: PlasmoCSConfig = {
 
 const MAX_PAGES = 500
 
+const XPATH = {
+  pageInput: "//div[@class='pageNumber']/label/input",
+  nextButton: "//div[@class='flip_button_right button']",
+  leftPageImage:
+    "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img",
+  rightPageImage:
+    "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
+} as const
+
 interface ScanState {
   isScanning: boolean
   isPaused: boolean
+  isPageReady: boolean
   currentPage: number
   totalPages: number
   scannedImages: string[]
@@ -31,6 +42,7 @@ function ScanDialog() {
   const [scanState, setScanState] = useState<ScanState>({
     isScanning: false,
     isPaused: false,
+    isPageReady: false,
     currentPage: 0,
     totalPages: 0,
     scannedImages: [],
@@ -42,80 +54,40 @@ function ScanDialog() {
 
   // ========== 扫描逻辑 ==========
   
-  // 使用 XPath 查询单个元素
-  function getElementByXPath(xpath: string): Element | null {
-    const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
-    return result.singleNodeValue as Element | null
-  }
-
-  // 使用 XPath 查询多个元素
-  function getElementsByXPath(xpath: string): Element[] {
-    const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null)
-    const elements: Element[] = []
-    for (let i = 0; i < result.snapshotLength; i++) {
-      const node = result.snapshotItem(i)
-      if (node) elements.push(node as Element)
-    }
-    return elements
-  }
-
-  // 调试函数：打印 DOM 信息
-  function debugDOM() {
-    console.log('========== SCAN DEBUG ==========')
-    console.log('Current URL:', window.location.href)
-    console.log('Document ready state:', document.readyState)
+  // 检查页面是否准备完成（持续监控直到准备完成）
+  async function checkPageReady() {
+    setScanState(prev => ({ ...prev, isPageReady: false }))
     
-    const bookContainer = document.getElementById('bookContainer')
-    console.log('bookContainer exists:', !!bookContainer)
-    
-    if (bookContainer) {
-      console.log('✅ Found bookContainer!')
+    // 持续检查直到页面准备完成，无超时限制
+    let isReady = false
+    while (!isReady) {
+      const element = getElementByXPath(XPATH.nextButton) as HTMLElement
+      if (element && element.offsetWidth > 0 && element.offsetHeight > 0) {
+        isReady = true
+        setScanState(prev => ({ ...prev, isPageReady: true }))
+      } else {
+        // 每 500ms 检查一次
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
     }
     
-    // 测试 XPath 选择器
-    const inputXPath = "//div[@class='pageNumber']/label/input"
-    const inputs = getElementsByXPath(inputXPath)
-    console.log('Page input found:', inputs.length > 0)
-    if (inputs.length > 0) {
-      const value = (inputs[0] as HTMLInputElement).value || ''
-      console.log('Page input value:', value)
-    }
-    
-    const nextBtnXPath = "//div[@class='flip_button_right button']"
-    const nextBtn = getElementByXPath(nextBtnXPath)
-    console.log('Next button found:', !!nextBtn)
-    
-    const leftImageXPath = "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
-    const leftImages = getElementsByXPath(leftImageXPath)
-    console.log('Left side images found:', leftImages.length)
-    
-    const rightImageXPath = "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
-    const rightImages = getElementsByXPath(rightImageXPath)
-    console.log('Right side images found:', rightImages.length)
-    
-    console.log('===============================')
+    return isReady
   }
-
+  
   // 获取总页数
   function getTotalPages(): number {
     // 从 input 元素的 value 中解析总页数
-    const inputXPath = "//div[@class='pageNumber']/label/input"
-    const inputs = getElementsByXPath(inputXPath)
+    const value = getInputValueByXPath(XPATH.pageInput)
     
-    if (inputs.length > 0) {
-      const value = (inputs[0] as HTMLInputElement).value || ''
-      console.log(`📊 Input value: "${value}"`)
-      
+    if (value) {
       // 解析 "16-17/92" 或 "1/92" 格式，提取斜杠后面的数字
       const match = value.match(/\/(\d+)/)
       if (match) {
         const total = parseInt(match[1], 10)
-        console.log(`📊 Total pages: ${total}`)
         return total
       }
     }
     
-    console.log(`❌ Cannot parse total pages`)
     return 0
   }
 
@@ -124,90 +96,41 @@ function ScanDialog() {
     const images: string[] = []
 
     // 获取左侧页面图片
-    const leftXPath = "//div[@id='bookContainer']//div[@class='left-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
-    const leftImgs = getElementsByXPath(leftXPath)
+    const leftImgs = getElementsByXPath(XPATH.leftPageImage)
     if (leftImgs.length > 0) {
       const src = (leftImgs[0] as HTMLImageElement).src
       if (src) {
         images.push(src)
-        console.log(`  📄 Left page image: ${src.substring(0, 80)}...`)
       }
     }
 
     // 获取右侧页面图片
-    const rightXPath = "//div[@id='bookContainer']//div[@class='right-mask-side' and (contains(@style, 'z-index: 2') or contains(@style, 'z-index:2'))]//div[@class='side-image']/img"
-    const rightImgs = getElementsByXPath(rightXPath)
+    const rightImgs = getElementsByXPath(XPATH.rightPageImage)
     if (rightImgs.length > 0) {
       const src = (rightImgs[0] as HTMLImageElement).src
       if (src) {
         images.push(src)
-        console.log(`  📄 Right page image: ${src.substring(0, 80)}...`)
       }
     }
 
     return images
   }
 
-  // 等待页面准备完成（检测下一页按钮）
-  async function waitForPageReady(maxWaitTime: number = 10000): Promise<boolean> {
-    const nextBtnXPath = "//div[@class='flip_button_right button']"
-    const startTime = Date.now()
-
-    console.log('⏳ Waiting for page to be ready...')
-
-    while (Date.now() - startTime < maxWaitTime) {
-      const nextBtn = getElementByXPath(nextBtnXPath) as HTMLElement
-      if (nextBtn && nextBtn.offsetWidth > 0 && nextBtn.offsetHeight > 0) {
-        console.log('✅ Page ready! Next button is visible')
-        return true
-      }
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-
-    console.log('❌ Page ready timeout after 10s')
-    return false
-  }
-
   // 点击下一页按钮
   function clickNextPage(): boolean {
-    const nextBtnXPath = "//div[@class='flip_button_right button']"
-    const nextBtn = getElementByXPath(nextBtnXPath) as HTMLElement
-
-    if (nextBtn && nextBtn.offsetWidth > 0 && nextBtn.offsetHeight > 0) {
-      console.log('🖱️ Clicking next page button')
-      nextBtn.click()
-      return true
-    } else {
-      console.log('❌ Cannot find next page button')
-      return false
-    }
+    const clicked = clickElementByXPath(XPATH.nextButton)
+    
+    return clicked
   }
 
   // 扫描所有页面
   async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false) {
-    console.log(continueScanning ? '▶️ Continuing scan...' : '🚀 Starting scan...')
-    console.log(`⚙️ Scan speed: ${scanSpeed}ms`)
-
     shouldStopRef.current = false
-
-    // 调试 DOM 结构
-    debugDOM()
-
-    // 等待页面加载完成
-    const isReady = await waitForPageReady()
-    if (!isReady) {
-      console.log('❌ Page not ready, aborting scan')
-      message.error('Page not ready after 10 seconds')
-      setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
-      return
-    }
 
     // 从 state 中获取总页数（已在弹窗打开时获取）
     const totalPages = scanState.totalPages
-    console.log(`📚 Total pages to scan: ${totalPages}`)
 
     if (totalPages === 0) {
-      console.log('❌ Cannot detect total pages, aborting scan')
       message.error('Cannot detect total pages')
       setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
       return
@@ -219,7 +142,6 @@ function ScanDialog() {
 
     // 如果不是继续扫描，获取第一页的图片
     if (!continueScanning) {
-      console.log(`\n📖 Scanning first page, collected images: ${allImages.length}/${totalPages}...`)
       const firstPageImages = getCurrentPageImages()
       allImages.push(...firstPageImages)
 
@@ -231,18 +153,14 @@ function ScanDialog() {
       }))
 
       flipCount++
-    } else {
-      console.log(`\n▶️ Continuing from image ${allImages.length}/${totalPages}...`)
     }
 
     // 扫描剩余页面
     while (allImages.length < totalPages && flipCount < MAX_PAGES && !shouldStopRef.current) {
-      console.log(`\n📖 Flipping page ${flipCount + 1}, collected images: ${allImages.length}/${totalPages}...`)
 
       // 点击下一页
       const clicked = clickNextPage()
       if (!clicked) {
-        console.log('❌ Failed to click next page button, stopping scan')
         break
       }
 
@@ -253,7 +171,6 @@ function ScanDialog() {
       const pageImages = getCurrentPageImages()
       if (pageImages.length > 0) {
         allImages.push(...pageImages)
-        console.log(`  ✅ Collected ${pageImages.length} image(s), total: ${allImages.length}/${totalPages}`)
 
         // 更新状态
         setScanState(prev => ({
@@ -261,8 +178,6 @@ function ScanDialog() {
           currentPage: allImages.length,
           scannedImages: [...allImages]
         }))
-      } else {
-        console.log(`  ⚠️ No images found after flip ${flipCount + 1}`)
       }
 
       flipCount++
@@ -271,10 +186,6 @@ function ScanDialog() {
     // 扫描完成或暂停
     const isComplete = allImages.length >= totalPages
     const isPaused = shouldStopRef.current && !isComplete
-
-    console.log(`\n✨ Scan ${isComplete ? 'completed' : isPaused ? 'paused' : 'stopped'}!`)
-    console.log(`📊 Total images collected: ${allImages.length}`)
-    console.log(`📄 Total flips: ${flipCount}, Images: ${allImages.length}/${totalPages}`)
 
     setScanState(prev => ({
       ...prev,
@@ -295,34 +206,43 @@ function ScanDialog() {
 
   // ========== 事件处理 ==========
 
+  // 打开扫描对话框并初始化
+  const openScanDialog = useCallback(() => {
+    // 清空之前的缓存数据
+    setScanState({
+      isScanning: false,
+      isPaused: false,
+      isPageReady: false,
+      currentPage: 0,
+      totalPages: 0,
+      scannedImages: [],
+      isComplete: false
+    })
+    
+    // 重置停止标志
+    shouldStopRef.current = false
+    
+    // 打开弹窗
+    setVisible(true)
+    
+    // 检查页面是否准备完成（异步执行，不阻塞）
+    checkPageReady()
+  }, [])
+
+  // 页面加载时自动打开对话框（如果 URL 匹配）
+  useEffect(() => {
+    const currentUrl = window.location.href
+    if (currentUrl.startsWith('https://online.fliphtml5.com/')) {
+      openScanDialog()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 只在组件挂载时运行一次
+
   // 监听来自 popup 的消息
   useEffect(() => {
     const handleMessage = (request: any) => {
       if (request.action === 'showScanDialog') {
-        // 清空之前的缓存数据
-        console.log('🧹 Clearing previous scan data...')
-        setScanState({
-          isScanning: false,
-          isPaused: false,
-          currentPage: 0,
-          totalPages: 0,
-          scannedImages: [],
-          isComplete: false
-        })
-        
-        // 重置停止标志
-        shouldStopRef.current = false
-        
-        // 打开弹窗
-        setVisible(true)
-        
-        // 弹窗打开时立即获取总页数
-        const total = getTotalPages()
-        console.log(`📊 Total pages detected: ${total}`)
-        setScanState(prev => ({
-          ...prev,
-          totalPages: total
-        }))
+        openScanDialog()
       }
     }
 
@@ -330,7 +250,7 @@ function ScanDialog() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage)
     }
-  }, [])
+  }, [openScanDialog])
 
   // 自动滚动到底部显示最新图片
   useEffect(() => {
@@ -341,14 +261,16 @@ function ScanDialog() {
 
   // 开始扫描（首次扫描）
   const handleStartScan = () => {
-    console.log('🚀 Starting scan from dialog...')
+    // 获取总页数
+    const total = getTotalPages()
     
-    // 清除之前的扫描数据（保留总页数）
+    // 清除之前的扫描数据（保留页面准备状态）
     setScanState(prev => ({
       isScanning: true,
       isPaused: false,
+      isPageReady: prev.isPageReady, // 保留页面准备状态
       currentPage: 0,
-      totalPages: prev.totalPages, // 保留已获取的总页数
+      totalPages: total, // 使用新获取的总页数
       scannedImages: [],
       isComplete: false
     }))
@@ -359,8 +281,6 @@ function ScanDialog() {
 
   // 继续扫描
   const handleContinueScan = () => {
-    console.log('▶️ Continuing scan from dialog...')
-    
     setScanState(prev => ({
       ...prev,
       isScanning: true,
@@ -373,7 +293,6 @@ function ScanDialog() {
 
   // 暂停扫描
   const handlePauseScan = () => {
-    console.log('⏸️ Pausing scan from dialog...')
     shouldStopRef.current = true
   }
 
@@ -400,7 +319,6 @@ function ScanDialog() {
       message.success('PDF downloaded successfully!')
     } catch (error) {
       message.error('Failed to generate PDF')
-      console.error('PDF generation failed:', error)
     }
   }
 
@@ -488,8 +406,10 @@ function ScanDialog() {
               icon={<PlayCircleOutlined />}
               onClick={handleStartScan}
               size="large"
+              disabled={!scanState.isPageReady}
+              loading={!scanState.isPageReady}
             >
-              Start Scan
+              {scanState.isPageReady ? 'Start Scan' : 'Page Loading'}
             </Button>
           )}
 

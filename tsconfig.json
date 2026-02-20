@@ -18,7 +18,8 @@
     "strict": true,
     "skipLibCheck": true,
     "types": [
-      "chrome"
+      "chrome",
+      "node"
     ]
   },
   "include": [
