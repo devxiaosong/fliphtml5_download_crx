@@ -4,6 +4,26 @@ import { PlayCircleOutlined, LinkOutlined, FileImageOutlined } from "@ant-design
 
 const { Text, Link, Title } = Typography
 
+// 辅助函数：获取当前页面信息（URL 和页码）
+const getPageInfo = async (): Promise<string> => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    const url = tab.url || 'unknown'
+    
+    // 尝试从 URL 中提取页码 (格式: #p=1 或 &p=1)
+    let pageNumber = 'N/A'
+    const pageMatch = url.match(/[#&]p=(\d+)/)
+    if (pageMatch) {
+      pageNumber = pageMatch[1]
+    }
+    
+    return `URL: ${url} | Page: ${pageNumber}`
+  } catch (error) {
+    console.error('Failed to get page info:', error)
+    return 'URL: unknown | Page: N/A'
+  }
+}
+
 export default function ScanControl() {
   const [scanSpeed, setScanSpeed] = useState(3000)  // 默认最慢档
   const [isButtonEnabled, setIsButtonEnabled] = useState(false)
@@ -11,6 +31,8 @@ export default function ScanControl() {
   // 检查当前页面是否是有效的 FlipHTML5 页面
   const checkCurrentPage = async () => {
     try {
+      const pageInfo = await getPageInfo()
+      
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       const url = tab.url || ''
       
@@ -61,7 +83,8 @@ export default function ScanControl() {
   }, [])
 
   // 保存扫描速度到 storage
-  const handleSpeedChange = (value: number) => {
+  const handleSpeedChange = async (value: number) => {
+    const pageInfo = await getPageInfo()
     setScanSpeed(value)
     chrome.storage.local.set({ scanSpeed: value })
   }
@@ -69,6 +92,8 @@ export default function ScanControl() {
   // 启动扫描
   const handleStartScan = async () => {
     try {
+      const pageInfo = await getPageInfo()
+      
       // 获取当前活动的标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       
@@ -161,6 +186,9 @@ export default function ScanControl() {
                   href="https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025" 
                   target="_blank"
                   style={{ fontSize: '13px' }}
+                  onClick={async () => {
+                    const pageInfo = await getPageInfo()
+                  }}
                 >
                   <LinkOutlined /> Click to open example page
                 </Link>
@@ -203,6 +231,21 @@ export default function ScanControl() {
           >
             Start Scan
           </Button>
+
+          {/* Support Information */}
+          <div style={{ textAlign: 'center', paddingTop: '12px', borderTop: '1px solid #f0f0f0' }}>
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              Support by{' '}
+              <a 
+                href="mailto:extensionkit@gmail.com" 
+                style={{ color: '#1890ff', textDecoration: 'none' }}
+                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+              >
+                extensionkit@gmail.com
+              </a>
+            </Text>
+          </div>
         </Flex>
       </div>
     </Flex>

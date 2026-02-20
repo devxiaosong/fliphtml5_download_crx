@@ -3,10 +3,31 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card, message, Dropdown } from "antd"
 import type { MenuProps } from "antd"
 import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
-import { generatePDF, downloadPDF, type PDFOrientation } from "../utils/pdfGenerator"
+import { generatePDF, downloadPDF } from "../utils/pdfGenerator"
+import type { PDFOrientation } from "../utils/pdfGenerator"
 import { getElementByXPath, getElementsByXPath, clickElementByXPath, getInputValueByXPath } from "../utils/domHelpers"
+import { logInfo } from "../utils/misc"
 
 const { Text } = Typography
+
+// Helper function to get current page info (URL and page number)
+const getPageInfo = (): string => {
+  try {
+    const url = window.location.href
+    
+    // Extract page number from URL (format: #p=1 or &p=1)
+    let pageNumber = 'N/A'
+    const pageMatch = url.match(/[#&]p=(\d+)/)
+    if (pageMatch) {
+      pageNumber = pageMatch[1]
+    }
+    
+    return `URL: ${url} | Page: ${pageNumber}`
+  } catch (error) {
+    console.error('Failed to get page info:', error)
+    return 'URL: unknown | Page: N/A'
+  }
+}
 
 //https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025/#p=1
 export const config: PlasmoCSConfig = {
@@ -48,16 +69,16 @@ function ScanDialog() {
     scannedImages: [],
     isComplete: false
   })
-  
+
   const shouldStopRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)  // 滚动容器引用
 
   // ========== 扫描逻辑 ==========
-  
+
   // 检查页面是否准备完成（持续监控直到准备完成）
   async function checkPageReady() {
     setScanState(prev => ({ ...prev, isPageReady: false }))
-    
+
     // 持续检查直到页面准备完成，无超时限制
     let isReady = false
     while (!isReady) {
@@ -65,29 +86,32 @@ function ScanDialog() {
       if (element && element.offsetWidth > 0 && element.offsetHeight > 0) {
         isReady = true
         setScanState(prev => ({ ...prev, isPageReady: true }))
+        logInfo('check page', `Page is ready`)
       } else {
         // 每 500ms 检查一次
         await new Promise(resolve => setTimeout(resolve, 500))
       }
     }
-    
+
     return isReady
   }
-  
+
   // 获取总页数
   function getTotalPages(): number {
     // 从 input 元素的 value 中解析总页数
     const value = getInputValueByXPath(XPATH.pageInput)
-    
+
     if (value) {
       // 解析 "16-17/92" 或 "1/92" 格式，提取斜杠后面的数字
       const match = value.match(/\/(\d+)/)
       if (match) {
         const total = parseInt(match[1], 10)
+        console.log('✅ Total pages detected:', total)
+        logInfo('total', `Total pages detected: ${total}`)
         return total
       }
     }
-    
+
     return 0
   }
 
@@ -119,22 +143,24 @@ function ScanDialog() {
   // 点击下一页按钮
   function clickNextPage(): boolean {
     const clicked = clickElementByXPath(XPATH.nextButton)
-    
     return clicked
   }
 
   // 扫描所有页面
-  async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false) {
+  async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false, totalPages?: number) {
     shouldStopRef.current = false
+    const pageInfo = getPageInfo()
 
-    // 从 state 中获取总页数（已在弹窗打开时获取）
-    const totalPages = scanState.totalPages
+    // 获取总页数：优先使用参数，否则从 state 获取
+    const pagesToScan = totalPages ?? scanState.totalPages
 
-    if (totalPages === 0) {
+    if (pagesToScan === 0) {
       message.error('Cannot detect total pages')
       setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
       return
     }
+    
+    logInfo('start', `speed: ${scanSpeed}ms, continue: ${continueScanning}, total: ${pagesToScan}) | ${pageInfo}`)
 
     // 继续扫描则使用已有的图片数组，否则从头开始
     const allImages: string[] = continueScanning ? [...scanState.scannedImages] : []
@@ -156,7 +182,7 @@ function ScanDialog() {
     }
 
     // 扫描剩余页面
-    while (allImages.length < totalPages && flipCount < MAX_PAGES && !shouldStopRef.current) {
+    while (allImages.length < pagesToScan && flipCount < MAX_PAGES && !shouldStopRef.current) {
 
       // 点击下一页
       const clicked = clickNextPage()
@@ -184,7 +210,7 @@ function ScanDialog() {
     }
 
     // 扫描完成或暂停
-    const isComplete = allImages.length >= totalPages
+    const isComplete = allImages.length >= pagesToScan
     const isPaused = shouldStopRef.current && !isComplete
 
     setScanState(prev => ({
@@ -195,12 +221,16 @@ function ScanDialog() {
       scannedImages: [...allImages]
     }))
 
+    const finalPageInfo = getPageInfo()
     if (isComplete) {
       message.success(`Scan completed! ${allImages.length} images collected.`)
+      logInfo('completed', `${allImages.length} images collected | ${finalPageInfo}`)
     } else if (isPaused) {
       message.info(`Scan paused. ${allImages.length} images collected.`)
+      logInfo('paused', `${allImages.length} images collected | ${finalPageInfo}`)
     } else {
       message.warning(`Scan stopped. ${allImages.length} images collected.`)
+      logInfo('stopped', `${allImages.length} images collected | ${finalPageInfo}`)
     }
   }
 
@@ -208,6 +238,9 @@ function ScanDialog() {
 
   // 打开扫描对话框并初始化
   const openScanDialog = useCallback(() => {
+    const pageInfo = getPageInfo()
+    logInfo('open dialog', `Scan dialog opened | ${pageInfo}`)
+    
     // 清空之前的缓存数据
     setScanState({
       isScanning: false,
@@ -218,13 +251,13 @@ function ScanDialog() {
       scannedImages: [],
       isComplete: false
     })
-    
+
     // 重置停止标志
     shouldStopRef.current = false
-    
+
     // 打开弹窗
     setVisible(true)
-    
+
     // 检查页面是否准备完成（异步执行，不阻塞）
     checkPageReady()
   }, [])
@@ -263,7 +296,12 @@ function ScanDialog() {
   const handleStartScan = () => {
     // 获取总页数
     const total = getTotalPages()
-    
+
+    if (total === 0) {
+      message.error('Cannot detect total pages. Please refresh the page and try again.')
+      return
+    }
+
     // 清除之前的扫描数据（保留页面准备状态）
     setScanState(prev => ({
       isScanning: true,
@@ -275,20 +313,27 @@ function ScanDialog() {
       isComplete: false
     }))
 
-    // 开始扫描
-    scanAllPages(3000, false)  // 使用最慢档速度，从头开始
+    // 开始扫描，传递总页数参数
+    scanAllPages(3000, false, total)  // 使用最慢档速度，从头开始
   }
 
   // 继续扫描
   const handleContinueScan = () => {
+    // 从 state 获取已有的总页数
+    const total = scanState.totalPages
+    
+    if (total === 0) {
+      return
+    }
+    
     setScanState(prev => ({
       ...prev,
       isScanning: true,
       isPaused: false,
     }))
 
-    // 继续扫描（不清空数组）
-    scanAllPages(3000, true)
+    // 继续扫描（不清空数组），传递总页数参数
+    scanAllPages(3000, true, total)
   }
 
   // 暂停扫描
@@ -298,25 +343,29 @@ function ScanDialog() {
 
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
+    const pageInfo = getPageInfo()
+    
     if (scanState.scannedImages.length === 0) {
       message.error('No images to download. Please scan first.')
       return
     }
 
     const imagesToUse = scanState.scannedImages
+    logInfo('start download', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}) | ${pageInfo}`)
 
     try {
       const hide = message.loading('Generating PDF...', 0)
-      
+
       const pdf = await generatePDF(imagesToUse, {
         orientation,
         addWatermark: true  // 始终添加水印
       })
 
       downloadPDF(pdf, `fliphtml5_ebook_${orientation}.pdf`)
-      
+
       hide()
       message.success('PDF downloaded successfully!')
+      logInfo('end download', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}) | ${pageInfo}`)
     } catch (error) {
       message.error('Failed to generate PDF')
     }
@@ -324,6 +373,9 @@ function ScanDialog() {
 
   // 关闭对话框
   const handleClose = () => {
+    const pageInfo = getPageInfo()
+    logInfo('close dialog', `Dialog closed (isScanning: ${scanState.isScanning}, scannedImages: ${scanState.scannedImages.length}) | ${pageInfo}`)
+    
     if (scanState.isScanning) {
       shouldStopRef.current = true
     }
@@ -384,9 +436,9 @@ function ScanDialog() {
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Text>Current Page: {scanState.currentPage}</Text>
               <Text>
-                {scanState.isComplete ? 'Scan Complete' : 
-                 scanState.isScanning ? 'Scanning...' : 
-                 scanState.isPaused ? 'Paused' : 
+                {scanState.isComplete ? 'Scan Complete' :
+                 scanState.isScanning ? 'Scanning...' :
+                 scanState.isPaused ? 'Paused' :
                  'Ready'}
               </Text>
             </div>
@@ -496,6 +548,21 @@ function ScanDialog() {
             )}
           </div>
         </Card>
+
+        {/* Support Information */}
+        <div style={{ textAlign: 'center', marginTop: '16px', paddingTop: '8px', borderTop: '1px solid #f0f0f0' }}>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            Support by{' '}
+            <a 
+              href="mailto:extensionkit@gmail.com" 
+              style={{ color: '#1890ff', textDecoration: 'none' }}
+              onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+              onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+            >
+              extensionkit@gmail.com
+            </a>
+          </Text>
+        </div>
       </Modal>
     </ConfigProvider>
   )
