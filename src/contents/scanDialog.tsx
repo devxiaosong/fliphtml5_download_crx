@@ -14,14 +14,14 @@ const { Text } = Typography
 const getPageInfo = (): string => {
   try {
     const url = window.location.href
-    
+
     // Extract page number from URL (format: #p=1 or &p=1)
     let pageNumber = 'N/A'
     const pageMatch = url.match(/[#&]p=(\d+)/)
     if (pageMatch) {
       pageNumber = pageMatch[1]
     }
-    
+
     return `URL: ${url} | Page: ${pageNumber}`
   } catch (error) {
     console.error('Failed to get page info:', error)
@@ -145,8 +145,6 @@ function ScanDialog() {
   // 点击下一页按钮
   function clickNextPage(): boolean {
     const clicked = clickElementByXPath(fliphtml5RulesRef.current!.nextButton)
-    const pageInfo = getPageInfo()
-    logInfo('click_next_page', `Next page button clicked: ${clicked} | ${pageInfo}`)
     return clicked
   }
 
@@ -163,7 +161,7 @@ function ScanDialog() {
       setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
       return
     }
-    
+
     logInfo('scan', `Scan started (speed: ${scanSpeed}ms, continue: ${continueScanning}, total: ${pagesToScan}) | ${pageInfo}`)
 
     // 继续扫描则使用已有的图片数组，否则从头开始
@@ -244,7 +242,7 @@ function ScanDialog() {
   const openScanDialog = useCallback(() => {
     const pageInfo = getPageInfo()
     logInfo('open dialog', `Scan dialog opened | ${pageInfo}`)
-    
+
     // 清空之前的缓存数据
     setScanState({
       isScanning: false,
@@ -271,18 +269,18 @@ function ScanDialog() {
     const initializeApp = async () => {
       const pageInfo = getPageInfo()
       setLoading(true)
-      
+
       try {
         // 调用 getAppInfo 获取应用信息
         const appInfo = await getAppInfo()
-        
+
         if (!appInfo || !(appInfo as any).fliphtml5_rules) {
           throw new Error('fliphtml5_rules not found in appInfo')
         }
-        
+
         // 从 appInfo 中提取并设置 fliphtml5_rules
         fliphtml5RulesRef.current = (appInfo as any).fliphtml5_rules
-        
+
         setLoading(false)
         openScanDialog()
 
@@ -291,7 +289,7 @@ function ScanDialog() {
         message.error('Failed to load application configuration. Please refresh the page.')
       }
     }
-    
+
     initializeApp()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 只在组件挂载时运行一次
@@ -350,11 +348,11 @@ function ScanDialog() {
   const handleContinueScan = () => {
     // 从 state 获取已有的总页数
     const total = scanState.totalPages
-    
+
     if (total === 0) {
       return
     }
-    
+
     setScanState(prev => ({
       ...prev,
       isScanning: true,
@@ -368,7 +366,6 @@ function ScanDialog() {
   // 暂停扫描
   const handlePauseScan = () => {
     const pageInfo = getPageInfo()
-    logInfo('handle_pause_scan', `Pause scan button clicked | ${pageInfo}`)
     shouldStopRef.current = true
   }
 
@@ -377,12 +374,12 @@ function ScanDialog() {
     try {
       const currentUrl = window.location.href
       const urlObj = new URL(currentUrl)
-      
+
       // 提取路径段，过滤空字符串
       let pathSegments = urlObj.pathname
         .split('/')
         .filter(seg => seg.trim() !== '')
-      
+
       // 处理路径段：解码、清理非法字符、截断长度
       const processSegment = (seg: string): string => {
         try {
@@ -391,26 +388,26 @@ function ScanDialog() {
         } catch {
           // 解码失败，保持原样
         }
-        
+
         // 清理非法文件名字符（Windows + Unix）
         seg = seg.replace(/[<>:"/\\|?*\s]/g, '_')
-        
+
         // 截断到最大长度
         const maxLength = 50
         if (seg.length > maxLength) {
           seg = seg.slice(0, maxLength)
         }
-        
+
         return seg
       }
-      
+
       // 处理所有路径段
       pathSegments = pathSegments.map(processSegment)
-      
+
       // 生成时间戳
       const now = new Date()
       const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
-      
+
       // 根据路径段数量生成文件名
       let fileName: string
       if (pathSegments.length >= 2) {
@@ -423,9 +420,9 @@ function ScanDialog() {
         // 没有路径段：默认名称
         fileName = `fliphtml5_download-${orientation}-${timestamp}`
       }
-      
+
       return `${fileName}.pdf`
-      
+
     } catch (error) {
       // URL 解析失败或其他异常，使用默认名称
       const now = new Date()
@@ -437,19 +434,18 @@ function ScanDialog() {
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
     const pageInfo = getPageInfo()
-    
+
     if (scanState.scannedImages.length === 0) {
       message.error('No images to download. Please scan first.')
-      logInfo('handle_download_pdf', `Download failed: No images scanned | ${pageInfo}`)
       return
     }
 
     const imagesToUse = scanState.scannedImages
     const homepage = fliphtml5RulesRef.current!.homepage
-    
+
     // 生成文件名
     const fileName = generatePdfFileName(orientation)
-    logInfo('handle_download_pdf', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
+    logInfo('start download', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
 
     try {
       const hide = message.loading('Generating PDF...', 0)
@@ -464,10 +460,9 @@ function ScanDialog() {
 
       hide()
       message.success('PDF downloaded successfully!')
-      logInfo('handle_download_pdf', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
+      logInfo('end download', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
     } catch (error) {
       message.error('Failed to generate PDF')
-      logInfo('handle_download_pdf', `PDF generation failed: ${error} | ${pageInfo}`)
     }
   }
 
@@ -475,7 +470,7 @@ function ScanDialog() {
   const handleClose = () => {
     const pageInfo = getPageInfo()
     logInfo('close dialog', `Dialog closed (isScanning: ${scanState.isScanning}, scannedImages: ${scanState.scannedImages.length}) | ${pageInfo}`)
-    
+
     if (scanState.isScanning) {
       shouldStopRef.current = true
     }
@@ -554,7 +549,7 @@ function ScanDialog() {
           </div>
         </div>
       )}
-      
+
       <Modal
         title="FlipHTML5 Scanner"
         open={visible}
@@ -689,8 +684,8 @@ function ScanDialog() {
         <div style={{ textAlign: 'center', marginTop: '16px', paddingTop: '8px', borderTop: '1px solid #f0f0f0' }}>
           <Text type="secondary" style={{ fontSize: '12px' }}>
             Support by{' '}
-            <a 
-              href="mailto:extensionkit@gmail.com" 
+            <a
+              href="mailto:extensionkit@gmail.com"
               style={{ color: '#1890ff', textDecoration: 'none' }}
               onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
               onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
