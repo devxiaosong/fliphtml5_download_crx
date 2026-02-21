@@ -40,7 +40,7 @@ export const config: PlasmoCSConfig = {
 interface FlipHTML5Rules {
   maxPages: number
   baseUrl: string
-  homepage: string
+  homepage?: string  // 可选，可能为 undefined
   pageInput: string
   nextButton: string
   leftPageImage: string
@@ -79,16 +79,12 @@ function ScanDialog() {
 
   // 检查页面是否准备完成（持续监控直到准备完成）
   async function checkPageReady() {
-    if (!fliphtml5RulesRef.current) {
-      return false
-    }
-    
     setScanState(prev => ({ ...prev, isPageReady: false }))
 
     // 持续检查直到页面准备完成，无超时限制
     let isReady = false
     while (!isReady) {
-      const element = getElementByXPath(fliphtml5RulesRef.current.nextButton) as HTMLElement
+      const element = getElementByXPath(fliphtml5RulesRef.current!.nextButton) as HTMLElement
       if (element && element.offsetWidth > 0 && element.offsetHeight > 0) {
         isReady = true
         setScanState(prev => ({ ...prev, isPageReady: true }))
@@ -104,12 +100,8 @@ function ScanDialog() {
 
   // 获取总页数
   function getTotalPages(): number {
-    if (!fliphtml5RulesRef.current) {
-      return 0
-    }
-    
     // 从 input 元素的 value 中解析总页数
-    const value = getInputValueByXPath(fliphtml5RulesRef.current.pageInput)
+    const value = getInputValueByXPath(fliphtml5RulesRef.current!.pageInput)
 
     if (value) {
       // 解析 "16-17/92" 或 "1/92" 格式，提取斜杠后面的数字
@@ -127,14 +119,10 @@ function ScanDialog() {
 
   // 获取当前页面的图片
   function getCurrentPageImages(): string[] {
-    if (!fliphtml5RulesRef.current) {
-      return []
-    }
-    
     const images: string[] = []
 
     // 获取左侧页面图片
-    const leftImgs = getElementsByXPath(fliphtml5RulesRef.current.leftPageImage)
+    const leftImgs = getElementsByXPath(fliphtml5RulesRef.current!.leftPageImage)
     if (leftImgs.length > 0) {
       const src = (leftImgs[0] as HTMLImageElement).src
       if (src) {
@@ -143,7 +131,7 @@ function ScanDialog() {
     }
 
     // 获取右侧页面图片
-    const rightImgs = getElementsByXPath(fliphtml5RulesRef.current.rightPageImage)
+    const rightImgs = getElementsByXPath(fliphtml5RulesRef.current!.rightPageImage)
     if (rightImgs.length > 0) {
       const src = (rightImgs[0] as HTMLImageElement).src
       if (src) {
@@ -156,22 +144,14 @@ function ScanDialog() {
 
   // 点击下一页按钮
   function clickNextPage(): boolean {
-    if (!fliphtml5RulesRef.current) {
-      return false
-    }
-    
-    const clicked = clickElementByXPath(fliphtml5RulesRef.current.nextButton)
+    const clicked = clickElementByXPath(fliphtml5RulesRef.current!.nextButton)
     const pageInfo = getPageInfo()
+    logInfo('click_next_page', `Next page button clicked: ${clicked} | ${pageInfo}`)
     return clicked
   }
 
   // 扫描所有页面
   async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false, totalPages?: number) {
-    if (!fliphtml5RulesRef.current) {
-      message.error('Configuration not loaded. Please refresh the page.')
-      return
-    }
-    
     shouldStopRef.current = false
     const pageInfo = getPageInfo()
 
@@ -206,7 +186,7 @@ function ScanDialog() {
     }
 
     // 扫描剩余页面
-    while (allImages.length < pagesToScan && flipCount < fliphtml5RulesRef.current.maxPages && !shouldStopRef.current) {
+    while (allImages.length < pagesToScan && flipCount < fliphtml5RulesRef.current!.maxPages && !shouldStopRef.current) {
 
       // 点击下一页
       const clicked = clickNextPage()
@@ -387,20 +367,89 @@ function ScanDialog() {
 
   // 暂停扫描
   const handlePauseScan = () => {
+    const pageInfo = getPageInfo()
+    logInfo('handle_pause_scan', `Pause scan button clicked | ${pageInfo}`)
     shouldStopRef.current = true
+  }
+
+  // 生成 PDF 文件名
+  const generatePdfFileName = (orientation: PDFOrientation): string => {
+    try {
+      const currentUrl = window.location.href
+      const urlObj = new URL(currentUrl)
+      
+      // 提取路径段，过滤空字符串
+      let pathSegments = urlObj.pathname
+        .split('/')
+        .filter(seg => seg.trim() !== '')
+      
+      // 处理路径段：解码、清理非法字符、截断长度
+      const processSegment = (seg: string): string => {
+        try {
+          // 解码 URL 编码
+          seg = decodeURIComponent(seg)
+        } catch {
+          // 解码失败，保持原样
+        }
+        
+        // 清理非法文件名字符（Windows + Unix）
+        seg = seg.replace(/[<>:"/\\|?*\s]/g, '_')
+        
+        // 截断到最大长度
+        const maxLength = 50
+        if (seg.length > maxLength) {
+          seg = seg.slice(0, maxLength)
+        }
+        
+        return seg
+      }
+      
+      // 处理所有路径段
+      pathSegments = pathSegments.map(processSegment)
+      
+      // 生成时间戳
+      const now = new Date()
+      const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+      
+      // 根据路径段数量生成文件名
+      let fileName: string
+      if (pathSegments.length >= 2) {
+        // 有2个或以上路径段：segment1-segment2-orientation-timestamp
+        fileName = `${pathSegments[0]}-${pathSegments[1]}-${orientation}-${timestamp}`
+      } else if (pathSegments.length === 1) {
+        // 只有1个路径段：segment1-orientation-timestamp
+        fileName = `${pathSegments[0]}-${orientation}-${timestamp}`
+      } else {
+        // 没有路径段：默认名称
+        fileName = `fliphtml5_download-${orientation}-${timestamp}`
+      }
+      
+      return `${fileName}.pdf`
+      
+    } catch (error) {
+      // URL 解析失败或其他异常，使用默认名称
+      const now = new Date()
+      const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+      return `fliphtml5_download-${orientation}-${timestamp}.pdf`
+    }
   }
 
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
     const pageInfo = getPageInfo()
-        
+    
     if (scanState.scannedImages.length === 0) {
       message.error('No images to download. Please scan first.')
+      logInfo('handle_download_pdf', `Download failed: No images scanned | ${pageInfo}`)
       return
     }
 
     const imagesToUse = scanState.scannedImages
-    const homepage = fliphtml5RulesRef.current?.homepage || ''
+    const homepage = fliphtml5RulesRef.current!.homepage
+    
+    // 生成文件名
+    const fileName = generatePdfFileName(orientation)
+    logInfo('handle_download_pdf', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
 
     try {
       const hide = message.loading('Generating PDF...', 0)
@@ -411,13 +460,14 @@ function ScanDialog() {
         homepage  // 添加底部链接
       })
 
-      downloadPDF(pdf, `fliphtml5_ebook_${orientation}.pdf`)
+      downloadPDF(pdf, fileName)
 
       hide()
       message.success('PDF downloaded successfully!')
-      logInfo('end download', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}) | ${pageInfo}`)
+      logInfo('handle_download_pdf', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
     } catch (error) {
       message.error('Failed to generate PDF')
+      logInfo('handle_download_pdf', `PDF generation failed: ${error} | ${pageInfo}`)
     }
   }
 

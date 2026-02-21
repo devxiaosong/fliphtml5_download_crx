@@ -162,31 +162,45 @@ class SimplePDFGenerator {
     // 创建页面内容流
     let contentStream = `q\n${finalWidth.toFixed(2)} 0 0 ${finalHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im${imageId} Do\nQ`
     
-    // 如果有 homepage，在底部添加链接文本
-    let linkAnnotId: number | null = null
-    if (this.homepage && this.fontId) {
+    // 如果有 homepage，在页眉和页脚添加链接文本
+    const linkAnnotIds: number[] = []
+    if (this.homepage && this.homepage.trim() !== '' && this.fontId) {
       const linkText = 'Download any FlipHTML5 as PDF - Click here'
       const fontSize = 20
       
       // 估算文本宽度（Helvetica字体大约是字号的0.5倍）
       const textWidth = linkText.length * fontSize * 0.5
       
-      // 计算右下角位置（右对齐）
-      const textX = this.pageWidth - textWidth - 10  // 距离右边10个单位
-      const textY = 10  // 距离底边10个单位
-      
-      // 添加文本绘制命令（蓝色，表示链接）
-      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${textX} ${textY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
-      
-      // 创建 URI Action
+      // 创建 URI Action（页眉和页脚共用）
       const actionId = this.addObject(
         `<<\n/S /URI\n/URI (${this.homepage})\n>>`
       )
       
-      // 创建 Link Annotation（覆盖整个文本区域）
-      linkAnnotId = this.addObject(
-        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${textX} ${textY} ${textX + textWidth} ${textY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
+      // 1. 页脚链接（右下角）
+      const footerTextX = this.pageWidth - textWidth - 10  // 距离右边10个单位
+      const footerTextY = 10  // 距离底边10个单位
+      
+      // 添加页脚文本绘制命令（蓝色）
+      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${footerTextX} ${footerTextY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
+      
+      // 创建页脚 Link Annotation
+      const footerLinkAnnotId = this.addObject(
+        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${footerTextX} ${footerTextY} ${footerTextX + textWidth} ${footerTextY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
       )
+      linkAnnotIds.push(footerLinkAnnotId)
+      
+      // 2. 页眉链接（右上角）
+      const headerTextX = this.pageWidth - textWidth - 10  // 距离右边10个单位
+      const headerTextY = this.pageHeight - fontSize - 10  // 距离顶边10个单位
+      
+      // 添加页眉文本绘制命令（蓝色）
+      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${headerTextX} ${headerTextY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
+      
+      // 创建页眉 Link Annotation
+      const headerLinkAnnotId = this.addObject(
+        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${headerTextX} ${headerTextY} ${headerTextX + textWidth} ${headerTextY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
+      )
+      linkAnnotIds.push(headerLinkAnnotId)
     }
     
     const contentId = this.addObject(
@@ -198,7 +212,9 @@ class SimplePDFGenerator {
       ? `/XObject << /Im${imageId} ${imageId} 0 R >>\n/Font << /F1 ${this.fontId} 0 R >>`
       : `/XObject << /Im${imageId} ${imageId} 0 R >>`
     
-    const annotsRef = linkAnnotId ? `/Annots [${linkAnnotId} 0 R]\n` : ''
+    const annotsRef = linkAnnotIds.length > 0 
+      ? `/Annots [${linkAnnotIds.map(id => `${id} 0 R`).join(' ')}]\n` 
+      : ''
     
     const pageId = this.addObject(
       `<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n${resourcesDict}\n>>\n/MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}]\n/Contents ${contentId} 0 R\n${annotsRef}>>`
