@@ -9,25 +9,6 @@ import { logInfo, getAppInfo } from "../utils/misc"
 
 const { Text } = Typography
 
-// Helper function to get current page info (URL and page number)
-const getPageInfo = (): string => {
-  try {
-    const url = window.location.href
-
-    // Extract page number from URL (format: #p=1 or &p=1)
-    let pageNumber = 'N/A'
-    const pageMatch = url.match(/[#&]p=(\d+)/)
-    if (pageMatch) {
-      pageNumber = pageMatch[1]
-    }
-
-    return `URL: ${url} | Page: ${pageNumber}`
-  } catch (error) {
-    console.error('Failed to get page info:', error)
-    return 'URL: unknown | Page: N/A'
-  }
-}
-
 //https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025/#p=1
 export const config: PlasmoCSConfig = {
   matches: ["https://online.fliphtml5.com/*"],
@@ -48,6 +29,13 @@ interface ImageState {
   isLoaded: boolean         // 是否已加载
 }
 
+interface MetaInfo {
+  title: string
+  pageCount: number
+  pageWidth: number
+  pageHeight: number
+}
+
 function ScanDialog() {
   const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -59,6 +47,7 @@ function ScanDialog() {
     totalPages: 0,
     isLoaded: false
   })
+  const [metaInfo, setMetaInfo] = useState<MetaInfo | null>(null)
   
   // 新增的导出控制状态
   const [splitMode, setSplitMode] = useState<'all' | 'custom'>('all') // 分页模式：全部或自定义
@@ -67,6 +56,15 @@ function ScanDialog() {
   const [exportRange, setExportRange] = useState<{ start: number; end: number }>({ start: 1, end: 1 })
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set())
   const [imagesPerRow, setImagesPerRow] = useState<2 | 4 | 6>(4) // 每行显示的图片数量，默认4
+  
+  // PDF 生成进度状态
+  const [pdfProgress, setPdfProgress] = useState<{
+    currentFile: number
+    totalFiles: number
+    currentPage: number
+    totalPages: number
+    message: string
+  } | null>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
@@ -111,33 +109,59 @@ function ScanDialog() {
 
   // 打开对话框并加载图片列表
   const openScanDialog = useCallback(async () => {
-    const pageInfo = getPageInfo()
-    logInfo('open_dialog', `Dialog opened | ${pageInfo}`)
+    const currentUrl = window.location.href
+    logInfo('open_dialog', `Dialog opened | URL: ${currentUrl}`)
 
     // 打开弹窗
     setVisible(true)
 
-    // 从页面配置加载图片列表
-    try {
-      const pageConfig = await getHtmlConfig()
-      console.log('=== Page Configuration ===')
-      console.log('fliphtml5_pages:', pageConfig.fliphtml5_pages)
-      console.log('htmlConfig.meta:', pageConfig.htmlConfig_meta)
-      
-      // 处理图片 URL
-      if (pageConfig.fliphtml5_pages && Array.isArray(pageConfig.fliphtml5_pages)) {
-        const currentUrl = window.location.href
-        // 获取基础 URL (移除 hash 和查询参数)
+    // 重试机制：等待3秒，最多重试3次
+    const maxRetries = 3
+    const retryDelay = 3000 // 3秒
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // 等待3秒
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+        
+        console.log(`Attempt ${attempt}/${maxRetries}: Loading page configuration...`)
+        const pageConfig = await getHtmlConfig()
+        
+        console.log('=== Page Configuration ===')
+        console.log('fliphtml5_pages:', pageConfig.fliphtml5_pages)
+        console.log('htmlConfig.meta:', pageConfig.htmlConfig_meta)
+        
+        // 验证必需的数据
+        if (!pageConfig.fliphtml5_pages || !Array.isArray(pageConfig.fliphtml5_pages)) {
+          throw new Error('fliphtml5_pages not found or invalid')
+        }
+        
+        if (!pageConfig.htmlConfig_meta) {
+          throw new Error('htmlConfig.meta not found')
+        }
+        
+        // 保存 meta 信息
+        const meta: MetaInfo = {
+          title: pageConfig.htmlConfig_meta.title || 'no title',
+          pageCount: pageConfig.htmlConfig_meta.pageCount || 0,
+          pageWidth: pageConfig.htmlConfig_meta.pageWidth || 0,
+          pageHeight: pageConfig.htmlConfig_meta.pageHeight || 0
+        }
+        setMetaInfo(meta)
+        
+        console.log('=== Meta Information ===')
+        console.log('Title:', meta.title)
+        console.log('Page Count:', meta.pageCount)
+        console.log('Page Size:', `${meta.pageWidth} x ${meta.pageHeight}`)
+        
+        // 处理图片 URL
         const baseUrl = currentUrl.split(/[#?]/)[0]
-        // 确保以 / 结尾
         const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'
         
         // 处理路径：移除 ./ 前缀和查询参数
         const cleanPath = (path: string) => {
           if (!path) return ''
-          // 移除 ./ 前缀
           let cleaned = path.startsWith('./') ? path.substring(2) : path
-          // 移除查询参数
           cleaned = cleaned.split('?')[0]
           return cleaned
         }
@@ -152,7 +176,7 @@ function ScanDialog() {
           thumbImages.push(normalizedBaseUrl + thumbPath)
           normalImages.push(normalizedBaseUrl + normalPath)
           
-          if (index < 5) {  // 只打印前5个
+          if (index < 5) {
             console.log(`Page ${index + 1}:`)
             console.log(`  Normal: ${normalizedBaseUrl + normalPath}`)
             console.log(`  Thumb:  ${normalizedBaseUrl + thumbPath}`)
@@ -167,23 +191,50 @@ function ScanDialog() {
         setImageState({
           thumbImages: thumbImages,
           normalImages: normalImages,
-          totalPages: thumbImages.length,
+          totalPages: meta.pageCount || thumbImages.length,
           isLoaded: true
         })
         
         // 初始化导出范围的结束页为总页数
-        setExportRange({ start: 1, end: thumbImages.length })
+        setExportRange({ start: 1, end: meta.pageCount || thumbImages.length })
         
         console.log(`=== Loaded ${thumbImages.length} images ===`)
-        logInfo('load_images', `Loaded ${thumbImages.length} images from config | ${pageInfo}`)
-      } else {
-        throw new Error('fliphtml5_pages not found or invalid')
+        logInfo('load_images', `Loaded ${thumbImages.length} images, title: ${meta.title} | URL: ${currentUrl}`)
+        
+        // 加载成功，退出重试循环
+        return
+        
+      } catch (error) {
+        console.error(`Attempt ${attempt}/${maxRetries} failed:`, error)
+        
+        // 如果还有重试次数，继续
+        if (attempt < maxRetries) {
+          console.log(`Waiting ${retryDelay}ms before retry...`)
+          continue
+        }
+        
+        // 所有重试都失败，显示友好的错误提示
+        console.error('All retry attempts failed')
+        logInfo('load_images', `Failed to load after ${maxRetries} attempts: ${error} | URL: ${currentUrl}`)
+        
+        Modal.error({
+          title: 'Failed to Load',
+          content: (
+            <div>
+              <p>Unable to load the page content. Please refresh the page and try again.</p>
+              <p style={{ marginTop: '12px', fontSize: '12px', color: '#666' }}>
+                If the problem persists, please contact support: 
+                <a href="mailto:extensionkit@gmail.com" style={{ marginLeft: '4px' }}>
+                  extensionkit@gmail.com
+                </a>
+              </p>
+            </div>
+          ),
+          onOk: () => setVisible(false)
+        })
+        
+        setVisible(false)
       }
-    } catch (error) {
-      console.error('Failed to load images from config:', error)
-      message.error('Failed to load images. Please refresh the page and try again.')
-      logInfo('load_images', `Failed to load from config: ${error} | ${pageInfo}`)
-      setVisible(false)
     }
   }, [])
 
@@ -222,37 +273,19 @@ function ScanDialog() {
   // 生成 PDF 文件名
   const generatePdfFileName = (orientation: PDFOrientation, partNumber?: number): string => {
     try {
-      const currentUrl = window.location.href
-      const urlObj = new URL(currentUrl)
-
-      // 提取路径段，过滤空字符串
-      let pathSegments = urlObj.pathname
-        .split('/')
-        .filter(seg => seg.trim() !== '')
-
-      // 处理路径段：解码、清理非法字符、截断长度
-      const processSegment = (seg: string): string => {
-        try {
-          // 解码 URL 编码
-          seg = decodeURIComponent(seg)
-        } catch {
-          // 解码失败，保持原样
-        }
-
-        // 清理非法文件名字符（Windows + Unix）
-        seg = seg.replace(/[<>:"/\\|?*\s]/g, '_')
-
-        // 截断到最大长度
-        const maxLength = 50
-        if (seg.length > maxLength) {
-          seg = seg.slice(0, maxLength)
-        }
-
-        return seg
+      // 获取 title，如果没有则使用 "no title"
+      let title = metaInfo?.title || 'no title'
+      
+      // 处理特殊字符：清理非法文件名字符（Windows + Unix）
+      title = title.replace(/[<>:"/\\|?*]/g, '_')
+      // 将多个空格替换为单个空格
+      title = title.replace(/\s+/g, ' ').trim()
+      
+      // 截断到最大长度
+      const maxLength = 100
+      if (title.length > maxLength) {
+        title = title.slice(0, maxLength)
       }
-
-      // 处理所有路径段
-      pathSegments = pathSegments.map(processSegment)
 
       // 生成时间戳
       const now = new Date()
@@ -261,33 +294,23 @@ function ScanDialog() {
       // 生成分页后缀
       const partSuffix = partNumber !== undefined ? `-part${partNumber}` : ''
 
-      // 根据路径段数量生成文件名
-      let fileName: string
-      if (pathSegments.length >= 2) {
-        // 有2个或以上路径段：segment1-segment2-orientation-timestamp-partN
-        fileName = `${pathSegments[0]}-${pathSegments[1]}-${orientation}-${timestamp}${partSuffix}`
-      } else if (pathSegments.length === 1) {
-        // 只有1个路径段：segment1-orientation-timestamp-partN
-        fileName = `${pathSegments[0]}-${orientation}-${timestamp}${partSuffix}`
-      } else {
-        // 没有路径段：默认名称
-        fileName = `fliphtml5_download-${orientation}-${timestamp}${partSuffix}`
-      }
+      // 生成文件名：title-orientation-timestamp-partN.pdf
+      const fileName = `${title}-${orientation}-${timestamp}${partSuffix}`
 
       return `${fileName}.pdf`
 
     } catch (error) {
-      // URL 解析失败或其他异常，使用默认名称
+      // 异常情况，使用默认名称
       const now = new Date()
       const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
       const partSuffix = partNumber !== undefined ? `-part${partNumber}` : ''
-      return `fliphtml5_download-${orientation}-${timestamp}${partSuffix}.pdf`
+      return `no_title-${orientation}-${timestamp}${partSuffix}.pdf`
     }
   }
 
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
-    const pageInfo = getPageInfo()
+    const currentUrl = window.location.href
     const allImages = imageState.normalImages
 
     if (allImages.length === 0) {
@@ -332,7 +355,7 @@ function ScanDialog() {
       return
     }
 
-    logInfo('handle_download_pdf', `Starting PDF download (exportMode: ${exportMode}, splitMode: ${splitMode}, orientation: ${orientation}, totalImages: ${filteredImages.length}, pagesPerFile: ${pagesPerFile}) | ${pageInfo}`)
+    logInfo('handle_download_pdf', `Starting PDF download (exportMode: ${exportMode}, splitMode: ${splitMode}, orientation: ${orientation}, totalImages: ${filteredImages.length}, pagesPerFile: ${pagesPerFile}) | URL: ${currentUrl}`)
 
     const homepage = fliphtml5RulesRef.current!.homepage
 
@@ -343,19 +366,36 @@ function ScanDialog() {
       if (splitMode === 'custom' && pagesPerFile > 0 && filteredImages.length > pagesPerFile) {
         // 分页导出多个PDF
         const totalFiles = Math.ceil(filteredImages.length / pagesPerFile)
-        const hide = message.loading(`Generating ${totalFiles} PDF files...`, 0)
 
         for (let i = 0; i < totalFiles; i++) {
           const startIdx = i * pagesPerFile
           const endIdx = Math.min(startIdx + pagesPerFile, filteredImages.length)
           const batchImages = filteredImages.slice(startIdx, endIdx)
           
+          // 更新进度：当前文件和文件内页面进度
+          setPdfProgress({
+            currentFile: i + 1,
+            totalFiles: totalFiles,
+            currentPage: 0,
+            totalPages: batchImages.length,
+            message: `Generating file ${i + 1}/${totalFiles}...`
+          })
+          
           const fileName = generatePdfFileName(orientation, i + 1)
           
           const pdf = await generatePDF(batchImages, {
             orientation,
             addWatermark: true,
-            homepage
+            homepage,
+            onProgress: (current, total) => {
+              setPdfProgress({
+                currentFile: i + 1,
+                totalFiles: totalFiles,
+                currentPage: current,
+                totalPages: total,
+                message: `File ${i + 1}/${totalFiles}: Processing page ${current}/${total}`
+              })
+            }
           })
 
           downloadPDF(pdf, fileName)
@@ -366,29 +406,46 @@ function ScanDialog() {
           }
         }
 
-        hide()
+        setPdfProgress(null)
         message.success(`Successfully downloaded ${totalFiles} PDF files!`)
-        logInfo('end download', `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | ${pageInfo}`)
+        logInfo('end_download', `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | URL: ${currentUrl}`)
       } else {
         // 单个PDF导出
-        const hide = message.loading('Generating PDF...', 0)
+        setPdfProgress({
+          currentFile: 1,
+          totalFiles: 1,
+          currentPage: 0,
+          totalPages: filteredImages.length,
+          message: 'Generating PDF...'
+        })
+        
         const fileName = generatePdfFileName(orientation)
 
         const pdf = await generatePDF(filteredImages, {
           orientation,
           addWatermark: true,
-          homepage
+          homepage,
+          onProgress: (current, total) => {
+            setPdfProgress({
+              currentFile: 1,
+              totalFiles: 1,
+              currentPage: current,
+              totalPages: total,
+              message: `Processing page ${current}/${total}`
+            })
+          }
         })
 
         downloadPDF(pdf, fileName)
 
-        hide()
+        setPdfProgress(null)
         message.success('PDF downloaded successfully!')
-        logInfo('end download', `PDF downloaded successfully (1 file, ${filteredImages.length} images) | ${pageInfo}`)
+        logInfo('end_download', `PDF downloaded successfully (1 file, ${filteredImages.length} images) | URL: ${currentUrl}`)
       }
     } catch (error) {
+      setPdfProgress(null)
       message.error('Failed to generate PDF')
-      logInfo('download error', `Failed to generate PDF: ${error} | ${pageInfo}`)
+      logInfo('download_error', `Failed to generate PDF: ${error} | URL: ${currentUrl}`)
     } finally {
       setDownloading(false)
     }
@@ -396,8 +453,8 @@ function ScanDialog() {
 
   // 关闭对话框
   const handleClose = () => {
-    const pageInfo = getPageInfo()
-    logInfo('close dialog', `Dialog closed (totalImages: ${imageState.totalPages}) | ${pageInfo}`)
+    const currentUrl = window.location.href
+    logInfo('close_dialog', `Dialog closed (totalImages: ${imageState.totalPages}) | URL: ${currentUrl}`)
     setVisible(false)
   }
 
@@ -550,6 +607,18 @@ function ScanDialog() {
             Download PDF
           </Button>
         </div>
+
+        {/* PDF Generation Progress */}
+        {pdfProgress && (
+          <div style={{ textAlign: 'center', marginBottom: '16px', color: '#1890ff' }}>
+            <Text type="secondary">
+              {pdfProgress.totalFiles > 1 
+                ? `Generating file ${pdfProgress.currentFile}/${pdfProgress.totalFiles} (${pdfProgress.currentPage}/${pdfProgress.totalPages} pages) - ${Math.round((pdfProgress.currentFile - 1 + (pdfProgress.currentPage / pdfProgress.totalPages)) / pdfProgress.totalFiles * 100)}%`
+                : `Generating PDF... ${pdfProgress.currentPage}/${pdfProgress.totalPages} pages (${Math.round((pdfProgress.currentPage / pdfProgress.totalPages) * 100)}%)`
+              }
+            </Text>
+          </div>
+        )}
 
         {/* Image Preview Area */}
         <Card 
