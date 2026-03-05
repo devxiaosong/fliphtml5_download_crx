@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { Button, Slider, Flex, Typography, Divider } from "antd"
 import { PlayCircleOutlined, LinkOutlined, FileImageOutlined } from "@ant-design/icons"
+import { logInfo } from "../utils/misc"
 
 const { Text, Link, Title } = Typography
 
@@ -39,10 +40,20 @@ export default function ScanControl() {
       // 去掉协议部分 (http:// 或 https://)
       const urlWithoutProtocol = url.split('//')[1] || ''
       
-      // 情况 2: online.fliphtml5.com - 直接可用（优先判断）
+      // 情况 2: online.fliphtml5.com - 检查路径段（优先判断）
       if (urlWithoutProtocol.startsWith('online.fliphtml5.com')) {
-        setIsButtonEnabled(true)
-        return
+        try {
+          const urlObj = new URL(url)
+          const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
+          
+          // 至少需要 2 个路径段才启用按钮
+          if (pathSegments.length >= 2) {
+            setIsButtonEnabled(true)
+            return
+          }
+        } catch (error) {
+          console.error('Failed to parse URL:', error)
+        }
       }
       
       // 情况 1: fliphtml5.com 短链接 - 需要至少 3 个路径段
@@ -109,12 +120,21 @@ export default function ScanControl() {
       
       // 情况 2: 处理 online.fliphtml5.com 网站（优先判断）
       if (urlWithoutProtocol.startsWith('online.fliphtml5.com')) {
-        // 向 content script 发送消息，注入对话框
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'showScanDialog',
-          scanSpeed: scanSpeed
-        })
-        return
+        try {
+          const urlObj = new URL(url)
+          const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
+          
+          // 刷新页面，对话框会自动打开
+          if (pathSegments.length < 2) {
+            logInfo('force_reload', `Detected root or incomplete path, forcing reload | URL: ${url}`)
+          } else {
+            logInfo('reload_page', `Reloading page to open dialog | URL: ${url}`)
+          }
+          chrome.tabs.reload(tab.id)
+          return
+        } catch (error) {
+          console.error('Failed to parse URL:', error)
+        }
       }
       
       // 情况 1: 处理 fliphtml5.com 短链接

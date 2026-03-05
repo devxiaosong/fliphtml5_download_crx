@@ -51,6 +51,7 @@ interface ImageState {
 function ScanDialog() {
   const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape' | 'square'>('portrait')
   const [imageState, setImageState] = useState<ImageState>({
     thumbImages: [],
@@ -65,6 +66,7 @@ function ScanDialog() {
   const [exportMode, setExportMode] = useState<'all' | 'range' | 'selected'>('all')
   const [exportRange, setExportRange] = useState<{ start: number; end: number }>({ start: 1, end: 1 })
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set())
+  const [imagesPerRow, setImagesPerRow] = useState<2 | 4 | 6>(4) // 每行显示的图片数量，默认4
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
@@ -217,24 +219,6 @@ function ScanDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 监听来自 popup 的消息
-  useEffect(() => {
-    const handleMessage = (request: any) => {
-      if (request.action === 'showScanDialog') {
-        if (!fliphtml5RulesRef.current) {
-          message.warning('Please wait, loading configuration...')
-          return
-        }
-        openScanDialog()
-      }
-    }
-
-    chrome.runtime.onMessage.addListener(handleMessage)
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage)
-    }
-  }, [openScanDialog])
-
   // 生成 PDF 文件名
   const generatePdfFileName = (orientation: PDFOrientation, partNumber?: number): string => {
     try {
@@ -352,6 +336,8 @@ function ScanDialog() {
 
     const homepage = fliphtml5RulesRef.current!.homepage
 
+    setDownloading(true)
+
     try {
       // 第二步：根据 splitMode 决定是否分页导出
       if (splitMode === 'custom' && pagesPerFile > 0 && filteredImages.length > pagesPerFile) {
@@ -403,6 +389,8 @@ function ScanDialog() {
     } catch (error) {
       message.error('Failed to generate PDF')
       logInfo('download error', `Failed to generate PDF: ${error} | ${pageInfo}`)
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -486,27 +474,26 @@ function ScanDialog() {
 
             {/* 第二行：分页导出设置 */}
             <div>
-              <Text strong style={{ marginRight: '12px', display: 'block', marginBottom: '8px' }}>Pages per File:</Text>
+              <Text strong style={{ marginRight: '12px' }}>Pages per File:</Text>
               <Radio.Group value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
-                <Space direction="vertical">
+                <Space direction="horizontal" size="large">
                   <Radio value="all">All in one file</Radio>
                   <Radio value="custom">
-                    <Space>
-                      <InputNumber
-                        min={1}
-                        max={imageState.totalPages}
-                        value={pagesPerFile}
-                        onChange={(value) => setPagesPerFile(value || 150)}
-                        disabled={splitMode !== 'custom'}
-                        style={{ width: '100px' }}
-                      />
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        pages per file
-                        {splitMode === 'custom' && imageState.totalPages > 0 && (
-                          <span> (Will generate {Math.ceil(imageState.totalPages / pagesPerFile)} files)</span>
-                        )}
-                      </Text>
-                    </Space>
+                    Custom:
+                    <InputNumber
+                      min={1}
+                      max={imageState.totalPages}
+                      value={pagesPerFile}
+                      onChange={(value) => setPagesPerFile(value || 150)}
+                      disabled={splitMode !== 'custom'}
+                      style={{ width: '100px', marginLeft: '8px' }}
+                    />
+                    <Text type="secondary" style={{ marginLeft: '4px', fontSize: '12px' }}>
+                      pages
+                      {splitMode === 'custom' && imageState.totalPages > 0 && (
+                        <span> ({Math.ceil(imageState.totalPages / pagesPerFile)} files)</span>
+                      )}
+                    </Text>
                   </Radio>
                 </Space>
               </Radio.Group>
@@ -514,41 +501,38 @@ function ScanDialog() {
 
             {/* 第三行：导出范围选择 */}
             <div>
-              <Text strong style={{ marginRight: '12px', display: 'block', marginBottom: '8px' }}>Export Range:</Text>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Radio.Group value={exportMode} onChange={(e) => setExportMode(e.target.value)}>
-                  <Space direction="vertical">
-                    <Radio value="all">All Pages</Radio>
-                    <Radio value="range">Specific Range</Radio>
-                    <Radio value="selected">Selected Pages ({selectedPages.size} selected)</Radio>
-                  </Space>
-                </Radio.Group>
-                {exportMode === 'range' && (
-                  <div style={{ marginLeft: '24px' }}>
-                    <Space>
-                      <Text>From:</Text>
-                      <InputNumber
-                        min={1}
-                        max={imageState.totalPages}
-                        value={exportRange.start}
-                        onChange={(value) => setExportRange(prev => ({ ...prev, start: value || 1 }))}
-                        style={{ width: '80px' }}
-                      />
-                      <Text>To:</Text>
-                      <InputNumber
-                        min={exportRange.start}
-                        max={imageState.totalPages}
-                        value={exportRange.end}
-                        onChange={(value) => setExportRange(prev => ({ ...prev, end: value || imageState.totalPages }))}
-                        style={{ width: '80px' }}
-                      />
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        ({Math.max(0, exportRange.end - exportRange.start + 1)} pages)
-                      </Text>
-                    </Space>
-                  </div>
-                )}
-              </Space>
+              <Text strong style={{ marginRight: '12px' }}>Export Range:</Text>
+              <Radio.Group value={exportMode} onChange={(e) => setExportMode(e.target.value)}>
+                <Space direction="horizontal" size="large" wrap>
+                  <Radio value="all">All Pages</Radio>
+                  <Radio value="range">
+                    Range:
+                    <InputNumber
+                      min={1}
+                      max={imageState.totalPages}
+                      value={exportRange.start}
+                      onChange={(value) => setExportRange(prev => ({ ...prev, start: value || 1 }))}
+                      disabled={exportMode !== 'range'}
+                      style={{ width: '70px', marginLeft: '8px' }}
+                      placeholder="From"
+                    />
+                    <Text style={{ margin: '0 4px' }}>-</Text>
+                    <InputNumber
+                      min={exportRange.start}
+                      max={imageState.totalPages}
+                      value={exportRange.end}
+                      onChange={(value) => setExportRange(prev => ({ ...prev, end: value || imageState.totalPages }))}
+                      disabled={exportMode !== 'range'}
+                      style={{ width: '70px' }}
+                      placeholder="To"
+                    />
+                    <Text type="secondary" style={{ marginLeft: '4px', fontSize: '12px' }}>
+                      ({Math.max(0, exportRange.end - exportRange.start + 1)} pages)
+                    </Text>
+                  </Radio>
+                  <Radio value="selected">Selected ({selectedPages.size})</Radio>
+                </Space>
+              </Radio.Group>
             </div>
           </Flex>
         </Card>
@@ -559,7 +543,8 @@ function ScanDialog() {
             type="primary"
             size="large"
             icon={<DownloadOutlined />}
-            disabled={imageState.thumbImages.length === 0}
+            disabled={imageState.thumbImages.length === 0 || downloading}
+            loading={downloading}
             onClick={() => handleDownloadPDF(pdfOrientation)}
           >
             Download PDF
@@ -570,27 +555,42 @@ function ScanDialog() {
         <Card 
           size="small" 
           title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <span>Pages: {imageCountText}</span>
-              {exportMode === 'selected' && displayImages.length > 0 && (
+              <Space size="middle">
                 <Space size="small">
-                  <Button 
-                    size="small" 
-                    onClick={() => {
-                      const allPages = new Set(Array.from({ length: imageState.totalPages }, (_, i) => i))
-                      setSelectedPages(allPages)
-                    }}
-                  >
-                    Select All
-                  </Button>
-                  <Button 
-                    size="small" 
-                    onClick={() => setSelectedPages(new Set())}
-                  >
-                    Clear All
-                  </Button>
+                  <Text style={{ fontSize: '13px' }}>Pages per row:</Text>
+                  <Segmented
+                    value={imagesPerRow}
+                    onChange={(value) => setImagesPerRow(value as 2 | 4 | 6)}
+                    options={[
+                      { label: '2', value: 2 },
+                      { label: '4', value: 4 },
+                      { label: '6', value: 6 }
+                    ]}
+                    size="small"
+                  />
                 </Space>
-              )}
+                {exportMode === 'selected' && displayImages.length > 0 && (
+                  <Space size="small">
+                    <Button 
+                      size="small" 
+                      onClick={() => {
+                        const allPages = new Set(Array.from({ length: imageState.totalPages }, (_, i) => i))
+                        setSelectedPages(allPages)
+                      }}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      size="small" 
+                      onClick={() => setSelectedPages(new Set())}
+                    >
+                      Clear All
+                    </Button>
+                  </Space>
+                )}
+              </Space>
             </div>
           } 
           styles={{ body: { padding: 0 } }}
@@ -604,18 +604,19 @@ function ScanDialog() {
               </div>
             ) : (
               <div className="image-preview-scroll" ref={scrollContainerRef}>
-                <div className="image-preview-grid">
-                  {displayImages.map((imgUrl, index) => (
-                    <div key={index} className="image-preview-item" style={{ position: 'relative' }}>
+                {/* 渲染封面（第1张，单独一行） */}
+                {displayImages.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                    <div className="image-preview-item" style={{ position: 'relative', width: 'auto', maxWidth: '300px' }}>
                       {exportMode === 'selected' && (
                         <Checkbox
-                          checked={selectedPages.has(index)}
+                          checked={selectedPages.has(0)}
                           onChange={(e) => {
                             const newSelected = new Set(selectedPages)
                             if (e.target.checked) {
-                              newSelected.add(index)
+                              newSelected.add(0)
                             } else {
-                              newSelected.delete(index)
+                              newSelected.delete(0)
                             }
                             setSelectedPages(newSelected)
                           }}
@@ -628,13 +629,90 @@ function ScanDialog() {
                           }}
                         />
                       )}
-                      <img src={imgUrl} alt={`Page ${index + 1}`} />
+                      <img src={displayImages[0]} alt="Cover" style={{ width: '100%', height: 'auto' }} />
                       <div className="image-preview-overlay">
-                        <Text style={{ color: 'white' }}>Page {index + 1}</Text>
+                        <Text style={{ color: 'white' }}>Cover</Text>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {/* 渲染中间页面（按列数排列） */}
+                {displayImages.length > 2 && (
+                  <div 
+                    className="image-preview-grid" 
+                    style={{ 
+                      gridTemplateColumns: `repeat(${imagesPerRow}, 1fr)`,
+                      marginBottom: displayImages.length > 1 ? '8px' : '0'
+                    }}
+                  >
+                    {displayImages.slice(1, -1).map((imgUrl, idx) => {
+                      const index = idx + 1
+                      return (
+                        <div key={index} className="image-preview-item" style={{ position: 'relative' }}>
+                          {exportMode === 'selected' && (
+                            <Checkbox
+                              checked={selectedPages.has(index)}
+                              onChange={(e) => {
+                                const newSelected = new Set(selectedPages)
+                                if (e.target.checked) {
+                                  newSelected.add(index)
+                                } else {
+                                  newSelected.delete(index)
+                                }
+                                setSelectedPages(newSelected)
+                              }}
+                              style={{
+                                position: 'absolute',
+                                top: '8px',
+                                left: '8px',
+                                zIndex: 10,
+                                transform: 'scale(1.5)'
+                              }}
+                            />
+                          )}
+                          <img src={imgUrl} alt={`Page ${index + 1}`} />
+                          <div className="image-preview-overlay">
+                            <Text style={{ color: 'white' }}>Page {index + 1}</Text>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* 渲染封底（最后1张，单独一行，仅当总数>1时） */}
+                {displayImages.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div className="image-preview-item" style={{ position: 'relative', width: 'auto', maxWidth: '300px' }}>
+                      {exportMode === 'selected' && (
+                        <Checkbox
+                          checked={selectedPages.has(displayImages.length - 1)}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedPages)
+                            if (e.target.checked) {
+                              newSelected.add(displayImages.length - 1)
+                            } else {
+                              newSelected.delete(displayImages.length - 1)
+                            }
+                            setSelectedPages(newSelected)
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            left: '8px',
+                            zIndex: 10,
+                            transform: 'scale(1.5)'
+                          }}
+                        />
+                      )}
+                      <img src={displayImages[displayImages.length - 1]} alt="Back Cover" style={{ width: '100%', height: 'auto' }} />
+                      <div className="image-preview-overlay">
+                        <Text style={{ color: 'white' }}>Back Cover</Text>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
