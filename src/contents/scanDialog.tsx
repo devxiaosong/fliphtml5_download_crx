@@ -1,11 +1,10 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { ConfigProvider, Modal, Button, Progress, Flex, Space, Typography, Card, message, Dropdown } from "antd"
+import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Dropdown } from "antd"
 import type { MenuProps } from "antd"
-import { PlayCircleOutlined, PauseCircleOutlined, DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
+import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
 import { generatePDF, downloadPDF } from "../utils/pdfGenerator"
 import type { PDFOrientation } from "../utils/pdfGenerator"
-import { getElementByXPath, getElementsByXPath, clickElementByXPath, getInputValueByXPath } from "../utils/domHelpers"
 import { logInfo, getAppInfo } from "../utils/misc"
 
 const { Text } = Typography
@@ -38,236 +37,147 @@ export const config: PlasmoCSConfig = {
 
 // 定义 FlipHTML5 规则类型
 interface FlipHTML5Rules {
-  maxPages: number
   baseUrl: string
-  homepage?: string  // 可选，可能为 undefined
-  pageInput: string
-  nextButton: string
-  leftPageImage: string
-  rightPageImage: string
+  homepage?: string
 }
 
-interface ScanState {
-  isScanning: boolean
-  isPaused: boolean
-  isPageReady: boolean
-  currentPage: number
+interface ImageState {
+  thumbImages: string[]     // 用于展示的缩略图
+  normalImages: string[]    // 用于生成PDF的高清图
   totalPages: number
-  scannedImages: string[]
-  isComplete: boolean
+  isLoaded: boolean         // 是否已加载
 }
 
 function ScanDialog() {
   const [visible, setVisible] = useState(false)
-  const [loading, setLoading] = useState(true)  // 全局加载状态
+  const [loading, setLoading] = useState(true)
   const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape' | 'square'>('portrait')
-  const [scanState, setScanState] = useState<ScanState>({
-    isScanning: false,
-    isPaused: false,
-    isPageReady: false,
-    currentPage: 0,
+  const [imageState, setImageState] = useState<ImageState>({
+    thumbImages: [],
+    normalImages: [],
     totalPages: 0,
-    scannedImages: [],
-    isComplete: false
+    isLoaded: false
   })
 
-  const shouldStopRef = useRef(false)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)  // 滚动容器引用
-  const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)  // FlipHTML5 规则引用，初始为 null
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
 
   // ========== 扫描逻辑 ==========
 
-  // 检查页面是否准备完成（持续监控直到准备完成）
-  async function checkPageReady() {
-    setScanState(prev => ({ ...prev, isPageReady: false }))
-
-    // 持续检查直到页面准备完成，无超时限制
-    let isReady = false
-    while (!isReady) {
-      const element = getElementByXPath(fliphtml5RulesRef.current!.nextButton) as HTMLElement
-      if (element && element.offsetWidth > 0 && element.offsetHeight > 0) {
-        isReady = true
-        setScanState(prev => ({ ...prev, isPageReady: true }))
-        logInfo('check page', `Page is ready`)
-      } else {
-        // 每 500ms 检查一次
-        await new Promise(resolve => setTimeout(resolve, 500))
-      }
-    }
-
-    return isReady
-  }
-
-  // 获取总页数
-  function getTotalPages(): number {
-    // 从 input 元素的 value 中解析总页数
-    const value = getInputValueByXPath(fliphtml5RulesRef.current!.pageInput)
-
-    if (value) {
-      // 解析 "16-17/92" 或 "1/92" 格式，提取斜杠后面的数字
-      const match = value.match(/\/(\d+)/)
-      if (match) {
-        const total = parseInt(match[1], 10)
-        console.log('✅ Total pages detected:', total)
-        logInfo('total', `Total pages detected: ${total}`)
-        return total
-      }
-    }
-
-    return 0
-  }
-
-  // 获取当前页面的图片
-  function getCurrentPageImages(): string[] {
-    const images: string[] = []
-
-    // 获取左侧页面图片
-    const leftImgs = getElementsByXPath(fliphtml5RulesRef.current!.leftPageImage)
-    if (leftImgs.length > 0) {
-      const src = (leftImgs[0] as HTMLImageElement).src
-      if (src) {
-        images.push(src)
-      }
-    }
-
-    // 获取右侧页面图片
-    const rightImgs = getElementsByXPath(fliphtml5RulesRef.current!.rightPageImage)
-    if (rightImgs.length > 0) {
-      const src = (rightImgs[0] as HTMLImageElement).src
-      if (src) {
-        images.push(src)
-      }
-    }
-
-    return images
-  }
-
-  // 点击下一页按钮
-  function clickNextPage(): boolean {
-    const clicked = clickElementByXPath(fliphtml5RulesRef.current!.nextButton)
-    return clicked
-  }
-
-  // 扫描所有页面
-  async function scanAllPages(scanSpeed: number = 3000, continueScanning: boolean = false, totalPages?: number) {
-    shouldStopRef.current = false
-    const pageInfo = getPageInfo()
-
-    // 获取总页数：优先使用参数，否则从 state 获取
-    const pagesToScan = totalPages ?? scanState.totalPages
-
-    if (pagesToScan === 0) {
-      message.error('Cannot detect total pages')
-      setScanState(prev => ({ ...prev, isScanning: false, isPaused: true }))
-      return
-    }
-
-    logInfo('scan', `Scan started (speed: ${scanSpeed}ms, continue: ${continueScanning}, total: ${pagesToScan}) | ${pageInfo}`)
-
-    // 继续扫描则使用已有的图片数组，否则从头开始
-    const allImages: string[] = continueScanning ? [...scanState.scannedImages] : []
-    let flipCount = continueScanning ? Math.ceil((allImages.length - 1) / 2) : 0  // 计算已翻页次数
-
-    // 如果不是继续扫描，获取第一页的图片
-    if (!continueScanning) {
-      const firstPageImages = getCurrentPageImages()
-      allImages.push(...firstPageImages)
-
-      // 更新状态
-      setScanState(prev => ({
-        ...prev,
-        currentPage: allImages.length,
-        scannedImages: [...allImages]
-      }))
-
-      flipCount++
-    }
-
-    // 扫描剩余页面
-    while (allImages.length < pagesToScan && flipCount < fliphtml5RulesRef.current!.maxPages && !shouldStopRef.current) {
-
-      // 点击下一页
-      const clicked = clickNextPage()
-      if (!clicked) {
-        break
-      }
-
-      // 等待页面加载
-      await new Promise(resolve => setTimeout(resolve, scanSpeed))
-
-      // 获取当前页图片
-      const pageImages = getCurrentPageImages()
-      if (pageImages.length > 0) {
-        allImages.push(...pageImages)
-
-        // 更新状态
-        setScanState(prev => ({
-          ...prev,
-          currentPage: allImages.length,
-          scannedImages: [...allImages]
-        }))
-      }
-
-      flipCount++
-    }
-
-    // 扫描完成或暂停
-    const isComplete = allImages.length >= pagesToScan
-    const isPaused = shouldStopRef.current && !isComplete
-
-    setScanState(prev => ({
-      ...prev,
-      isScanning: false,
-      isPaused,
-      isComplete,
-      scannedImages: [...allImages]
-    }))
-
-    const finalPageInfo = getPageInfo()
-    if (isComplete) {
-      message.success(`Scan completed! ${allImages.length} images collected.`)
-      logInfo('completed', `${allImages.length} images collected | ${finalPageInfo}`)
-    } else if (isPaused) {
-      message.info(`Scan paused. ${allImages.length} images collected.`)
-      logInfo('paused', `${allImages.length} images collected | ${finalPageInfo}`)
-    } else {
-      message.warning(`Scan stopped. ${allImages.length} images collected.`)
-      logInfo('stopped', `${allImages.length} images collected | ${finalPageInfo}`)
-    }
+  // 从页面上下文获取配置信息（绕过 CSP）
+  function getHtmlConfig(): Promise<any> {
+    return new Promise((resolve) => {
+      const eventName = 'htmlConfigLoaded_' + Date.now()
+      
+      // 监听自定义事件
+      window.addEventListener(eventName, (event: any) => {
+        resolve(event.detail)
+      }, { once: true })
+      
+      // 使用 DOM 元素的事件处理器来访问页面上下文（绕过 CSP）
+      const element = document.createElement('div')
+      element.style.display = 'none'
+      element.setAttribute('onclick', `
+        (function() {
+          const fliphtml5Pages = (window.global && window.global.fliphtml5_pages) || null;
+          const htmlConfigMeta = (window.htmlConfig && window.htmlConfig.meta) || null;
+          
+          const combinedData = {
+            fliphtml5_pages: fliphtml5Pages,
+            htmlConfig_meta: htmlConfigMeta
+          };
+          
+          window.dispatchEvent(new CustomEvent('${eventName}', {
+            detail: combinedData
+          }));
+        })();
+      `)
+      document.documentElement.appendChild(element)
+      element.click()
+      element.remove()
+    })
   }
 
   // ========== 事件处理 ==========
 
-  // 打开扫描对话框并初始化
-  const openScanDialog = useCallback(() => {
+  // 打开对话框并加载图片列表
+  const openScanDialog = useCallback(async () => {
     const pageInfo = getPageInfo()
-    logInfo('open dialog', `Scan dialog opened | ${pageInfo}`)
-
-    // 清空之前的缓存数据
-    setScanState({
-      isScanning: false,
-      isPaused: false,
-      isPageReady: false,
-      currentPage: 0,
-      totalPages: 0,
-      scannedImages: [],
-      isComplete: false
-    })
-
-    // 重置停止标志
-    shouldStopRef.current = false
+    logInfo('open_dialog', `Dialog opened | ${pageInfo}`)
 
     // 打开弹窗
     setVisible(true)
 
-    // 检查页面是否准备完成（异步执行，不阻塞）
-    checkPageReady()
+    // 从页面配置加载图片列表
+    try {
+      const pageConfig = await getHtmlConfig()
+      console.log('=== Page Configuration ===')
+      console.log('fliphtml5_pages:', pageConfig.fliphtml5_pages)
+      console.log('htmlConfig.meta:', pageConfig.htmlConfig_meta)
+      
+      // 处理图片 URL
+      if (pageConfig.fliphtml5_pages && Array.isArray(pageConfig.fliphtml5_pages)) {
+        const currentUrl = window.location.href
+        // 获取基础 URL (移除 hash 和查询参数)
+        const baseUrl = currentUrl.split(/[#?]/)[0]
+        // 确保以 / 结尾
+        const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'
+        
+        // 处理路径：移除 ./ 前缀和查询参数
+        const cleanPath = (path: string) => {
+          if (!path) return ''
+          // 移除 ./ 前缀
+          let cleaned = path.startsWith('./') ? path.substring(2) : path
+          // 移除查询参数
+          cleaned = cleaned.split('?')[0]
+          return cleaned
+        }
+        
+        const thumbImages: string[] = []
+        const normalImages: string[] = []
+        
+        pageConfig.fliphtml5_pages.forEach((page: any, index: number) => {
+          const normalPath = cleanPath(page.n)
+          const thumbPath = cleanPath(page.t)
+          
+          thumbImages.push(normalizedBaseUrl + thumbPath)
+          normalImages.push(normalizedBaseUrl + normalPath)
+          
+          if (index < 5) {  // 只打印前5个
+            console.log(`Page ${index + 1}:`)
+            console.log(`  Normal: ${normalizedBaseUrl + normalPath}`)
+            console.log(`  Thumb:  ${normalizedBaseUrl + thumbPath}`)
+          }
+        })
+        
+        if (pageConfig.fliphtml5_pages.length > 5) {
+          console.log(`... and ${pageConfig.fliphtml5_pages.length - 5} more pages`)
+        }
+        
+        // 更新状态
+        setImageState({
+          thumbImages: thumbImages,
+          normalImages: normalImages,
+          totalPages: thumbImages.length,
+          isLoaded: true
+        })
+        
+        console.log(`=== Loaded ${thumbImages.length} images ===`)
+        logInfo('load_images', `Loaded ${thumbImages.length} images from config | ${pageInfo}`)
+      } else {
+        throw new Error('fliphtml5_pages not found or invalid')
+      }
+    } catch (error) {
+      console.error('Failed to load images from config:', error)
+      message.error('Failed to load images. Please refresh the page and try again.')
+      logInfo('load_images', `Failed to load from config: ${error} | ${pageInfo}`)
+      setVisible(false)
+    }
   }, [])
 
   // 页面加载时先加载配置，然后打开对话框
   useEffect(() => {
     const initializeApp = async () => {
-      const pageInfo = getPageInfo()
       setLoading(true)
 
       try {
@@ -282,8 +192,11 @@ function ScanDialog() {
         fliphtml5RulesRef.current = (appInfo as any).fliphtml5_rules
 
         setLoading(false)
-        openScanDialog()
 
+        // 如果当前页面匹配 baseUrl，自动打开对话框
+        if (window.location.href.startsWith(fliphtml5RulesRef.current!.baseUrl)) {
+          openScanDialog()
+        }
       } catch (error) {
         setLoading(false)
         message.error('Failed to load application configuration. Please refresh the page.')
@@ -292,7 +205,7 @@ function ScanDialog() {
 
     initializeApp()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 只在组件挂载时运行一次
+  }, [])
 
   // 监听来自 popup 的消息
   useEffect(() => {
@@ -311,63 +224,6 @@ function ScanDialog() {
       chrome.runtime.onMessage.removeListener(handleMessage)
     }
   }, [openScanDialog])
-
-  // 自动滚动到底部显示最新图片
-  useEffect(() => {
-    if (scanState.isScanning && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
-    }
-  }, [scanState.scannedImages.length, scanState.isScanning])
-
-  // 开始扫描（首次扫描）
-  const handleStartScan = () => {
-    // 获取总页数
-    const total = getTotalPages()
-
-    if (total === 0) {
-      message.error('Cannot detect total pages. Please refresh the page and try again.')
-      return
-    }
-
-    // 清除之前的扫描数据（保留页面准备状态）
-    setScanState(prev => ({
-      isScanning: true,
-      isPaused: false,
-      isPageReady: prev.isPageReady, // 保留页面准备状态
-      currentPage: 0,
-      totalPages: total, // 使用新获取的总页数
-      scannedImages: [],
-      isComplete: false
-    }))
-
-    // 开始扫描，传递总页数参数
-    scanAllPages(3000, false, total)  // 使用最慢档速度，从头开始
-  }
-
-  // 继续扫描
-  const handleContinueScan = () => {
-    // 从 state 获取已有的总页数
-    const total = scanState.totalPages
-
-    if (total === 0) {
-      return
-    }
-
-    setScanState(prev => ({
-      ...prev,
-      isScanning: true,
-      isPaused: false,
-    }))
-
-    // 继续扫描（不清空数组），传递总页数参数
-    scanAllPages(3000, true, total)
-  }
-
-  // 暂停扫描
-  const handlePauseScan = () => {
-    const pageInfo = getPageInfo()
-    shouldStopRef.current = true
-  }
 
   // 生成 PDF 文件名
   const generatePdfFileName = (orientation: PDFOrientation): string => {
@@ -435,25 +291,27 @@ function ScanDialog() {
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
     const pageInfo = getPageInfo()
 
-    if (scanState.scannedImages.length === 0) {
-      message.error('No images to download. Please scan first.')
+    // 使用高清图生成PDF
+    const imagesToUse = imageState.normalImages
+
+    if (imagesToUse.length === 0) {
+      message.error('No images to download.')
       return
     }
 
-    const imagesToUse = scanState.scannedImages
     const homepage = fliphtml5RulesRef.current!.homepage
 
     // 生成文件名
     const fileName = generatePdfFileName(orientation)
-    logInfo('start download', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
+    logInfo('handle_download_pdf', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
 
     try {
       const hide = message.loading('Generating PDF...', 0)
 
       const pdf = await generatePDF(imagesToUse, {
         orientation,
-        addWatermark: true,  // 始终添加水印
-        homepage  // 添加底部链接
+        addWatermark: true,
+        homepage
       })
 
       downloadPDF(pdf, fileName)
@@ -469,17 +327,13 @@ function ScanDialog() {
   // 关闭对话框
   const handleClose = () => {
     const pageInfo = getPageInfo()
-    logInfo('close dialog', `Dialog closed (isScanning: ${scanState.isScanning}, scannedImages: ${scanState.scannedImages.length}) | ${pageInfo}`)
-
-    if (scanState.isScanning) {
-      shouldStopRef.current = true
-    }
+    logInfo('close dialog', `Dialog closed (totalImages: ${imageState.totalPages}) | ${pageInfo}`)
     setVisible(false)
   }
 
-  const displayImages = scanState.scannedImages
-  const imageCountText = scanState.scannedImages.length > 0
-    ? `${scanState.scannedImages.length}`
+  const displayImages = imageState.thumbImages
+  const imageCountText = imageState.thumbImages.length > 0
+    ? `${imageState.thumbImages.length}`
     : '0'
 
   const downloadMenuItems: MenuProps['items'] = [
@@ -561,82 +415,23 @@ function ScanDialog() {
         style={{ maxHeight: '90vh' }}
         styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflow: 'hidden' } }}
       >
-        {/* Progress Display */}
+        {/* Status Display */}
         <Card size="small" style={{ marginBottom: '16px' }}>
           <Flex vertical gap="small" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>Current Page: {scanState.currentPage}</Text>
-              <Text>
-                {scanState.isComplete ? 'Scan Complete' :
-                 scanState.isScanning ? 'Scanning...' :
-                 scanState.isPaused ? 'Paused' :
-                 'Ready'}
-              </Text>
+              <Text>Total Pages: {imageState.totalPages}</Text>
+              <Text>{imageState.isLoaded ? 'Ready' : 'Loading...'}</Text>
             </div>
-            <Progress
-              percent={scanState.totalPages > 0 ? Math.round((scanState.currentPage / scanState.totalPages) * 100) : 0}
-              status={scanState.isComplete ? 'success' : scanState.isScanning ? 'active' : 'normal'}
-            />
           </Flex>
         </Card>
 
         {/* Control Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
-          {/* 初始状态：Start Scan */}
-          {(!scanState.isScanning && !scanState.isPaused && !scanState.isComplete) && (
-            <Button
-              type="primary"
-              icon={<PlayCircleOutlined />}
-              onClick={handleStartScan}
-              size="large"
-              disabled={!scanState.isPageReady}
-              loading={!scanState.isPageReady}
-            >
-              {scanState.isPageReady ? 'Start Scan' : 'Page Loading'}
-            </Button>
-          )}
-
-          {/* 扫描中：Pause Scan */}
-          {scanState.isScanning && (
-            <Button
-              type="primary"
-              icon={<PauseCircleOutlined />}
-              onClick={handlePauseScan}
-              size="large"
-            >
-              Pause Scan
-            </Button>
-          )}
-
-          {/* 暂停后：Continue Scan (outline样式) */}
-          {(!scanState.isScanning && scanState.isPaused && !scanState.isComplete) && (
-            <Button
-              type="default"
-              icon={<PlayCircleOutlined />}
-              onClick={handleContinueScan}
-              size="large"
-            >
-              Continue Scan
-            </Button>
-          )}
-
-          {/* 完成后：Completed (灰化不可点击) */}
-          {scanState.isComplete && (
-            <Button
-              type="primary"
-              icon={<PlayCircleOutlined />}
-              disabled
-              size="large"
-            >
-              Completed
-            </Button>
-          )}
-
           <Space.Compact>
             <Button
               type="primary"
               size="large"
-              disabled={scanState.isScanning || scanState.scannedImages.length === 0}
+              disabled={imageState.thumbImages.length === 0}
               onClick={() => handleDownloadPDF('portrait')}
             >
               Download
@@ -644,24 +439,26 @@ function ScanDialog() {
             <Dropdown
               menu={{ items: downloadMenuItems }}
               trigger={['hover']}
-              disabled={scanState.isScanning || scanState.scannedImages.length === 0}
+              disabled={imageState.thumbImages.length === 0}
             >
               <Button
                 type="primary"
                 size="large"
                 icon={<DownloadOutlined />}
-                disabled={scanState.isScanning || scanState.scannedImages.length === 0}
+                disabled={imageState.thumbImages.length === 0}
               />
             </Dropdown>
           </Space.Compact>
         </div>
 
         {/* Image Preview Area */}
-        <Card size="small" title={`Scanned Images: ${imageCountText}`} styles={{ body: { padding: 0 } }}>
+        <Card size="small" title={`Images: ${imageCountText}`} styles={{ body: { padding: 0 } }}>
           <div className="image-preview-container">
             {displayImages.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
-                <Text type="secondary">No images scanned yet. Click "Start Scan" to begin.</Text>
+                <Text type="secondary">
+                  Loading images...
+                </Text>
               </div>
             ) : (
               <div className="image-preview-scroll" ref={scrollContainerRef}>
