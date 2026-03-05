@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Dropdown } from "antd"
+import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Dropdown, Segmented, InputNumber, Radio, Input, Checkbox } from "antd"
 import type { MenuProps } from "antd"
 import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined } from "@ant-design/icons"
 import { generatePDF, downloadPDF } from "../utils/pdfGenerator"
@@ -58,6 +58,13 @@ function ScanDialog() {
     totalPages: 0,
     isLoaded: false
   })
+  
+  // 新增的导出控制状态
+  const [splitMode, setSplitMode] = useState<'all' | 'custom'>('all') // 分页模式：全部或自定义
+  const [pagesPerFile, setPagesPerFile] = useState<number>(150) // 自定义模式下每份的页数，默认150
+  const [exportMode, setExportMode] = useState<'all' | 'range' | 'selected'>('all')
+  const [exportRange, setExportRange] = useState<{ start: number; end: number }>({ start: 1, end: 1 })
+  const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set())
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
@@ -162,6 +169,9 @@ function ScanDialog() {
           isLoaded: true
         })
         
+        // 初始化导出范围的结束页为总页数
+        setExportRange({ start: 1, end: thumbImages.length })
+        
         console.log(`=== Loaded ${thumbImages.length} images ===`)
         logInfo('load_images', `Loaded ${thumbImages.length} images from config | ${pageInfo}`)
       } else {
@@ -226,7 +236,7 @@ function ScanDialog() {
   }, [openScanDialog])
 
   // 生成 PDF 文件名
-  const generatePdfFileName = (orientation: PDFOrientation): string => {
+  const generatePdfFileName = (orientation: PDFOrientation, partNumber?: number): string => {
     try {
       const currentUrl = window.location.href
       const urlObj = new URL(currentUrl)
@@ -264,17 +274,20 @@ function ScanDialog() {
       const now = new Date()
       const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
 
+      // 生成分页后缀
+      const partSuffix = partNumber !== undefined ? `-part${partNumber}` : ''
+
       // 根据路径段数量生成文件名
       let fileName: string
       if (pathSegments.length >= 2) {
-        // 有2个或以上路径段：segment1-segment2-orientation-timestamp
-        fileName = `${pathSegments[0]}-${pathSegments[1]}-${orientation}-${timestamp}`
+        // 有2个或以上路径段：segment1-segment2-orientation-timestamp-partN
+        fileName = `${pathSegments[0]}-${pathSegments[1]}-${orientation}-${timestamp}${partSuffix}`
       } else if (pathSegments.length === 1) {
-        // 只有1个路径段：segment1-orientation-timestamp
-        fileName = `${pathSegments[0]}-${orientation}-${timestamp}`
+        // 只有1个路径段：segment1-orientation-timestamp-partN
+        fileName = `${pathSegments[0]}-${orientation}-${timestamp}${partSuffix}`
       } else {
         // 没有路径段：默认名称
-        fileName = `fliphtml5_download-${orientation}-${timestamp}`
+        fileName = `fliphtml5_download-${orientation}-${timestamp}${partSuffix}`
       }
 
       return `${fileName}.pdf`
@@ -283,44 +296,113 @@ function ScanDialog() {
       // URL 解析失败或其他异常，使用默认名称
       const now = new Date()
       const timestamp = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
-      return `fliphtml5_download-${orientation}-${timestamp}.pdf`
+      const partSuffix = partNumber !== undefined ? `-part${partNumber}` : ''
+      return `fliphtml5_download-${orientation}-${timestamp}${partSuffix}.pdf`
     }
   }
 
   // 下载 PDF
   const handleDownloadPDF = async (orientation: PDFOrientation = 'portrait') => {
     const pageInfo = getPageInfo()
+    const allImages = imageState.normalImages
 
-    // 使用高清图生成PDF
-    const imagesToUse = imageState.normalImages
-
-    if (imagesToUse.length === 0) {
+    if (allImages.length === 0) {
       message.error('No images to download.')
       return
     }
 
+    // 第一步：根据 exportMode 过滤要导出的图片
+    let filteredImages: string[] = []
+    
+    switch (exportMode) {
+      case 'all':
+        filteredImages = [...allImages]
+        break
+      
+      case 'range':
+        const start = Math.max(1, exportRange.start) - 1 // 转换为0-based索引
+        const end = Math.min(exportRange.end, allImages.length) // 1-based，包含这一页
+        
+        if (exportRange.start > exportRange.end || start >= allImages.length) {
+          message.error('Invalid range. Please check your input.')
+          return
+        }
+        
+        filteredImages = allImages.slice(start, end)
+        break
+      
+      case 'selected':
+        if (selectedPages.size === 0) {
+          message.error('Please select at least one page.')
+          return
+        }
+        
+        // 将选中的索引转换为图片数组
+        const sortedIndices = Array.from(selectedPages).sort((a, b) => a - b)
+        filteredImages = sortedIndices.map(index => allImages[index]).filter(Boolean)
+        break
+    }
+
+    if (filteredImages.length === 0) {
+      message.error('No images match your selection.')
+      return
+    }
+
+    logInfo('handle_download_pdf', `Starting PDF download (exportMode: ${exportMode}, splitMode: ${splitMode}, orientation: ${orientation}, totalImages: ${filteredImages.length}, pagesPerFile: ${pagesPerFile}) | ${pageInfo}`)
+
     const homepage = fliphtml5RulesRef.current!.homepage
 
-    // 生成文件名
-    const fileName = generatePdfFileName(orientation)
-    logInfo('handle_download_pdf', `Starting PDF download (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
-
     try {
-      const hide = message.loading('Generating PDF...', 0)
+      // 第二步：根据 splitMode 决定是否分页导出
+      if (splitMode === 'custom' && pagesPerFile > 0 && filteredImages.length > pagesPerFile) {
+        // 分页导出多个PDF
+        const totalFiles = Math.ceil(filteredImages.length / pagesPerFile)
+        const hide = message.loading(`Generating ${totalFiles} PDF files...`, 0)
 
-      const pdf = await generatePDF(imagesToUse, {
-        orientation,
-        addWatermark: true,
-        homepage
-      })
+        for (let i = 0; i < totalFiles; i++) {
+          const startIdx = i * pagesPerFile
+          const endIdx = Math.min(startIdx + pagesPerFile, filteredImages.length)
+          const batchImages = filteredImages.slice(startIdx, endIdx)
+          
+          const fileName = generatePdfFileName(orientation, i + 1)
+          
+          const pdf = await generatePDF(batchImages, {
+            orientation,
+            addWatermark: true,
+            homepage
+          })
 
-      downloadPDF(pdf, fileName)
+          downloadPDF(pdf, fileName)
+          
+          // 添加小延迟以避免浏览器同时下载过多文件
+          if (i < totalFiles - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300))
+          }
+        }
 
-      hide()
-      message.success('PDF downloaded successfully!')
-      logInfo('end download', `PDF downloaded successfully (orientation: ${orientation}, images: ${imagesToUse.length}, fileName: ${fileName}) | ${pageInfo}`)
+        hide()
+        message.success(`Successfully downloaded ${totalFiles} PDF files!`)
+        logInfo('end download', `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | ${pageInfo}`)
+      } else {
+        // 单个PDF导出
+        const hide = message.loading('Generating PDF...', 0)
+        const fileName = generatePdfFileName(orientation)
+
+        const pdf = await generatePDF(filteredImages, {
+          orientation,
+          addWatermark: true,
+          homepage
+        })
+
+        downloadPDF(pdf, fileName)
+
+        hide()
+        message.success('PDF downloaded successfully!')
+        logInfo('end download', `PDF downloaded successfully (1 file, ${filteredImages.length} images) | ${pageInfo}`)
+      }
     } catch (error) {
       message.error('Failed to generate PDF')
+      logInfo('download error', `Failed to generate PDF: ${error} | ${pageInfo}`)
     }
   }
 
@@ -335,36 +417,6 @@ function ScanDialog() {
   const imageCountText = imageState.thumbImages.length > 0
     ? `${imageState.thumbImages.length}`
     : '0'
-
-  const downloadMenuItems: MenuProps['items'] = [
-    {
-      key: 'portrait',
-      icon: <FileTextOutlined />,
-      label: 'Portrait (A4 210×297mm)',
-      onClick: () => {
-        setPdfOrientation('portrait')
-        handleDownloadPDF('portrait')
-      }
-    },
-    {
-      key: 'landscape',
-      icon: <LayoutOutlined />,
-      label: 'Landscape (A4 297×210mm)',
-      onClick: () => {
-        setPdfOrientation('landscape')
-        handleDownloadPDF('landscape')
-      }
-    },
-    {
-      key: 'square',
-      icon: <BorderOutlined />,
-      label: 'Square (210×210mm)',
-      onClick: () => {
-        setPdfOrientation('square')
-        handleDownloadPDF('square')
-      }
-    }
-  ]
 
   return (
     <ConfigProvider>
@@ -415,44 +467,134 @@ function ScanDialog() {
         style={{ maxHeight: '90vh' }}
         styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflow: 'hidden' } }}
       >
-        {/* Status Display */}
+        {/* Export Settings */}
         <Card size="small" style={{ marginBottom: '16px' }}>
-          <Flex vertical gap="small" style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>Total Pages: {imageState.totalPages}</Text>
-              <Text>{imageState.isLoaded ? 'Ready' : 'Loading...'}</Text>
+          <Flex vertical gap="middle">
+            {/* 第一行：PDF方向选择 */}
+            <div>
+              <Text strong style={{ marginRight: '12px' }}>PDF Orientation:</Text>
+              <Segmented
+                value={pdfOrientation}
+                onChange={(value) => setPdfOrientation(value as PDFOrientation)}
+                options={[
+                  { label: 'Portrait', value: 'portrait', icon: <FileTextOutlined /> },
+                  { label: 'Landscape', value: 'landscape', icon: <LayoutOutlined /> },
+                  { label: 'Square', value: 'square', icon: <BorderOutlined /> }
+                ]}
+              />
+            </div>
+
+            {/* 第二行：分页导出设置 */}
+            <div>
+              <Text strong style={{ marginRight: '12px', display: 'block', marginBottom: '8px' }}>Pages per File:</Text>
+              <Radio.Group value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
+                <Space direction="vertical">
+                  <Radio value="all">All in one file</Radio>
+                  <Radio value="custom">
+                    <Space>
+                      <InputNumber
+                        min={1}
+                        max={imageState.totalPages}
+                        value={pagesPerFile}
+                        onChange={(value) => setPagesPerFile(value || 150)}
+                        disabled={splitMode !== 'custom'}
+                        style={{ width: '100px' }}
+                      />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        pages per file
+                        {splitMode === 'custom' && imageState.totalPages > 0 && (
+                          <span> (Will generate {Math.ceil(imageState.totalPages / pagesPerFile)} files)</span>
+                        )}
+                      </Text>
+                    </Space>
+                  </Radio>
+                </Space>
+              </Radio.Group>
+            </div>
+
+            {/* 第三行：导出范围选择 */}
+            <div>
+              <Text strong style={{ marginRight: '12px', display: 'block', marginBottom: '8px' }}>Export Range:</Text>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio.Group value={exportMode} onChange={(e) => setExportMode(e.target.value)}>
+                  <Space direction="vertical">
+                    <Radio value="all">All Pages</Radio>
+                    <Radio value="range">Specific Range</Radio>
+                    <Radio value="selected">Selected Pages ({selectedPages.size} selected)</Radio>
+                  </Space>
+                </Radio.Group>
+                {exportMode === 'range' && (
+                  <div style={{ marginLeft: '24px' }}>
+                    <Space>
+                      <Text>From:</Text>
+                      <InputNumber
+                        min={1}
+                        max={imageState.totalPages}
+                        value={exportRange.start}
+                        onChange={(value) => setExportRange(prev => ({ ...prev, start: value || 1 }))}
+                        style={{ width: '80px' }}
+                      />
+                      <Text>To:</Text>
+                      <InputNumber
+                        min={exportRange.start}
+                        max={imageState.totalPages}
+                        value={exportRange.end}
+                        onChange={(value) => setExportRange(prev => ({ ...prev, end: value || imageState.totalPages }))}
+                        style={{ width: '80px' }}
+                      />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        ({Math.max(0, exportRange.end - exportRange.start + 1)} pages)
+                      </Text>
+                    </Space>
+                  </div>
+                )}
+              </Space>
             </div>
           </Flex>
         </Card>
 
         {/* Control Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
-          <Space.Compact>
-            <Button
-              type="primary"
-              size="large"
-              disabled={imageState.thumbImages.length === 0}
-              onClick={() => handleDownloadPDF('portrait')}
-            >
-              Download
-            </Button>
-            <Dropdown
-              menu={{ items: downloadMenuItems }}
-              trigger={['hover']}
-              disabled={imageState.thumbImages.length === 0}
-            >
-              <Button
-                type="primary"
-                size="large"
-                icon={<DownloadOutlined />}
-                disabled={imageState.thumbImages.length === 0}
-              />
-            </Dropdown>
-          </Space.Compact>
+          <Button
+            type="primary"
+            size="large"
+            icon={<DownloadOutlined />}
+            disabled={imageState.thumbImages.length === 0}
+            onClick={() => handleDownloadPDF(pdfOrientation)}
+          >
+            Download PDF
+          </Button>
         </div>
 
         {/* Image Preview Area */}
-        <Card size="small" title={`Images: ${imageCountText}`} styles={{ body: { padding: 0 } }}>
+        <Card 
+          size="small" 
+          title={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Pages: {imageCountText}</span>
+              {exportMode === 'selected' && displayImages.length > 0 && (
+                <Space size="small">
+                  <Button 
+                    size="small" 
+                    onClick={() => {
+                      const allPages = new Set(Array.from({ length: imageState.totalPages }, (_, i) => i))
+                      setSelectedPages(allPages)
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button 
+                    size="small" 
+                    onClick={() => setSelectedPages(new Set())}
+                  >
+                    Clear All
+                  </Button>
+                </Space>
+              )}
+            </div>
+          } 
+          styles={{ body: { padding: 0 } }}
+        >
           <div className="image-preview-container">
             {displayImages.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
@@ -464,7 +606,28 @@ function ScanDialog() {
               <div className="image-preview-scroll" ref={scrollContainerRef}>
                 <div className="image-preview-grid">
                   {displayImages.map((imgUrl, index) => (
-                    <div key={index} className="image-preview-item">
+                    <div key={index} className="image-preview-item" style={{ position: 'relative' }}>
+                      {exportMode === 'selected' && (
+                        <Checkbox
+                          checked={selectedPages.has(index)}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedPages)
+                            if (e.target.checked) {
+                              newSelected.add(index)
+                            } else {
+                              newSelected.delete(index)
+                            }
+                            setSelectedPages(newSelected)
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            left: '8px',
+                            zIndex: 10,
+                            transform: 'scale(1.5)'
+                          }}
+                        />
+                      )}
                       <img src={imgUrl} alt={`Page ${index + 1}`} />
                       <div className="image-preview-overlay">
                         <Text style={{ color: 'white' }}>Page {index + 1}</Text>
