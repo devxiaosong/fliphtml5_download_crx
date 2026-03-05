@@ -124,12 +124,7 @@ function ScanDialog() {
         // 等待3秒
         await new Promise(resolve => setTimeout(resolve, retryDelay))
         
-        console.log(`Attempt ${attempt}/${maxRetries}: Loading page configuration...`)
         const pageConfig = await getHtmlConfig()
-        
-        console.log('=== Page Configuration ===')
-        console.log('fliphtml5_pages:', pageConfig.fliphtml5_pages)
-        console.log('htmlConfig.meta:', pageConfig.htmlConfig_meta)
         
         // 验证必需的数据
         if (!pageConfig.fliphtml5_pages || !Array.isArray(pageConfig.fliphtml5_pages)) {
@@ -148,11 +143,6 @@ function ScanDialog() {
           pageHeight: pageConfig.htmlConfig_meta.pageHeight || 0
         }
         setMetaInfo(meta)
-        
-        console.log('=== Meta Information ===')
-        console.log('Title:', meta.title)
-        console.log('Page Count:', meta.pageCount)
-        console.log('Page Size:', `${meta.pageWidth} x ${meta.pageHeight}`)
         
         // 处理图片 URL
         const baseUrl = currentUrl.split(/[#?]/)[0]
@@ -176,16 +166,7 @@ function ScanDialog() {
           thumbImages.push(normalizedBaseUrl + thumbPath)
           normalImages.push(normalizedBaseUrl + normalPath)
           
-          if (index < 5) {
-            console.log(`Page ${index + 1}:`)
-            console.log(`  Normal: ${normalizedBaseUrl + normalPath}`)
-            console.log(`  Thumb:  ${normalizedBaseUrl + thumbPath}`)
-          }
         })
-        
-        if (pageConfig.fliphtml5_pages.length > 5) {
-          console.log(`... and ${pageConfig.fliphtml5_pages.length - 5} more pages`)
-        }
         
         // 更新状态
         setImageState({
@@ -197,8 +178,7 @@ function ScanDialog() {
         
         // 初始化导出范围的结束页为总页数
         setExportRange({ start: 1, end: meta.pageCount || thumbImages.length })
-        
-        console.log(`=== Loaded ${thumbImages.length} images ===`)
+
         logInfo('load_images', `Loaded ${thumbImages.length} images, title: ${meta.title} | URL: ${currentUrl}`)
         
         // 加载成功，退出重试循环
