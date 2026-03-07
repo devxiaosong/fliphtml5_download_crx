@@ -66,6 +66,7 @@ export function usePdfExport({
 }: UsePdfExportParams) {
   const [splitMode, setSplitMode] = useState<"all" | "custom">("all")
   const [pagesPerFile, setPagesPerFile] = useState<number>(150)
+  const [imageQuality, setImageQuality] = useState<number>(0.92)
   const [exportMode, setExportMode] = useState<"all" | "range" | "selected">("all")
   const [exportRange, setExportRange] = useState<{ start: number; end: number }>({
     start: 1,
@@ -165,6 +166,7 @@ export function usePdfExport({
               customPageSize,
               addWatermark: true,
               homepage,
+              imageQuality,
               onProgress: (current, total) => {
                 setPdfProgress({
                   currentFile: i + 1,
@@ -203,6 +205,7 @@ export function usePdfExport({
             customPageSize,
             addWatermark: true,
             homepage,
+            imageQuality,
             onProgress: (current, total) => {
               setPdfProgress({
                 currentFile: 1,
@@ -240,6 +243,7 @@ export function usePdfExport({
       selectedPages,
       splitMode,
       pagesPerFile,
+      imageQuality,
       metaInfo?.title,
       getHomepage
     ]
@@ -250,6 +254,8 @@ export function usePdfExport({
     setSplitMode,
     pagesPerFile,
     setPagesPerFile,
+    imageQuality,
+    setImageQuality,
     exportMode,
     setExportMode,
     exportRange,

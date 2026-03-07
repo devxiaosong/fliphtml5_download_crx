@@ -7,6 +7,7 @@ interface PDFOptions {
   homepage?: string
   customPageSize?: { width: number; height: number }
   onProgress?: (current: number, total: number) => void
+  imageQuality?: number
 }
 
 // PDF 页面尺寸（单位：points, 1mm = 2.83465 points）
@@ -276,7 +277,7 @@ export async function generatePDF(
     throw new Error('No images to generate PDF')
   }
 
-  const { orientation, addWatermark, title, homepage, customPageSize, onProgress } = options
+  const { orientation, addWatermark, title, homepage, customPageSize, onProgress, imageQuality = 0.92 } = options
   const pageSize = customPageSize ?? PAGE_SIZES[orientation]
   
   console.log(`Generating PDF with ${imageUrls.length} images...`)
@@ -297,7 +298,7 @@ export async function generatePDF(
     
     try {
       const canvas = await imageToCanvas(imageUrls[i], addWatermark)
-      const imgData = canvas.toDataURL('image/jpeg', 0.92)
+      const imgData = canvas.toDataURL('image/jpeg', imageQuality)
       await pdf.addImagePage(imgData)
       
       // 调用进度回调

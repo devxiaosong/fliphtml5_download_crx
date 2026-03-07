@@ -1,5 +1,8 @@
-import { Card, Button, Space, Typography, Segmented } from "antd"
+import { useState } from "react"
+import { Card, Button, Space, Typography, Segmented, Tooltip, message } from "antd"
+import { DownloadOutlined } from "@ant-design/icons"
 import { PageThumbnail } from "./PageThumbnail"
+import { generateImageFileName, downloadImage, getLabelByIndex } from "../utils/imageDownload"
 
 const { Text } = Typography
 
@@ -15,6 +18,8 @@ interface ImagePreviewCardProps {
   setSelectedPages: (set: Set<number>) => void
   totalPages: number
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  /** 书名，用于生成图片下载文件名 */
+  title?: string
 }
 
 export function ImagePreviewCard({
@@ -25,8 +30,10 @@ export function ImagePreviewCard({
   selectedPages,
   setSelectedPages,
   totalPages,
-  scrollContainerRef
+  scrollContainerRef,
+  title = ""
 }: ImagePreviewCardProps) {
+  const [batchDownloading, setBatchDownloading] = useState(false)
   const showCheckbox = exportMode === "selected"
 
   const handleCheck = (index: number, checked: boolean) => {
@@ -34,6 +41,28 @@ export function ImagePreviewCard({
     if (checked) next.add(index)
     else next.delete(index)
     setSelectedPages(next)
+  }
+
+  const handleBatchDownload = async () => {
+    if (selectedPages.size === 0) return
+    setBatchDownloading(true)
+    const sortedIndices = Array.from(selectedPages).sort((a, b) => a - b)
+    let successCount = 0
+    for (const index of sortedIndices) {
+      const imgUrl = displayImages[index]
+      if (!imgUrl) continue
+      const label = getLabelByIndex(index, displayImages.length)
+      try {
+        await downloadImage(imgUrl, generateImageFileName(title, label))
+        successCount++
+        // 避免浏览器拦截连续下载
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      } catch {
+        // 继续下载下一张
+      }
+    }
+    setBatchDownloading(false)
+    message.success(`Downloaded ${successCount} image(s)`)
   }
 
   const imageCountText =
@@ -82,6 +111,23 @@ export function ImagePreviewCard({
                 <Button size="small" onClick={() => setSelectedPages(new Set())}>
                   Clear All
                 </Button>
+                <Tooltip
+                  title={
+                    selectedPages.size === 0
+                      ? "No pages selected"
+                      : `Download ${selectedPages.size} selected image(s)`
+                  }
+                >
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    onClick={handleBatchDownload}
+                    loading={batchDownloading}
+                    disabled={selectedPages.size === 0}
+                    type="primary"
+                    ghost
+                  />
+                </Tooltip>
               </Space>
             )}
           </Space>
@@ -118,6 +164,7 @@ export function ImagePreviewCard({
                   checked={selectedPages.has(0)}
                   onCheckChange={(checked) => handleCheck(0, checked)}
                   narrow
+                  title={title}
                 />
               </div>
             )}
@@ -141,6 +188,7 @@ export function ImagePreviewCard({
                       showCheckbox={showCheckbox}
                       checked={selectedPages.has(index)}
                       onCheckChange={(checked) => handleCheck(index, checked)}
+                      title={title}
                     />
                   )
                 })}
@@ -164,6 +212,7 @@ export function ImagePreviewCard({
                     handleCheck(displayImages.length - 1, checked)
                   }
                   narrow
+                  title={title}
                 />
               </div>
             )}

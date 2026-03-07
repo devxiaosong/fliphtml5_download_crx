@@ -1,7 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useState, useEffect, useRef } from "react"
-import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Segmented, InputNumber, Radio } from "antd"
-import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined } from "@ant-design/icons"
+import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Segmented, InputNumber, Radio, Tooltip } from "antd"
+import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined, QuestionCircleOutlined } from "@ant-design/icons"
 import type { PDFOrientation } from "../utils/pdfGenerator"
 
 type PDFOrientationUI = PDFOrientation | "auto"
@@ -44,6 +44,8 @@ function ScanDialog() {
     setSplitMode,
     pagesPerFile,
     setPagesPerFile,
+    imageQuality,
+    setImageQuality,
     exportMode,
     setExportMode,
     exportRange,
@@ -120,8 +122,8 @@ function ScanDialog() {
         <Card size="small" style={{ marginBottom: '16px' }}>
           <Flex vertical gap="middle">
             {/* 第一行：PDF方向选择 */}
-            <div>
-              <Text strong style={{ marginRight: '12px' }}>PDF Orientation:</Text>
+            <Flex align="center" gap={16}>
+              <Text strong style={{ minWidth: '110px' }}>PDF Orientation:</Text>
               <Segmented
                 value={pdfOrientation}
                 onChange={(value) => setPdfOrientation(value as PDFOrientationUI)}
@@ -132,11 +134,40 @@ function ScanDialog() {
                   { label: 'Square', value: 'square', icon: <BorderOutlined /> }
                 ]}
               />
-            </div>
+            </Flex>
 
-            {/* 第二行：分页导出设置 */}
-            <div>
-              <Text strong style={{ marginRight: '12px' }}>Pages per File:</Text>
+            {/* 第二行：图片质量选择 */}
+            <Flex align="center" gap={16}>
+              <Flex align="center" style={{ minWidth: '110px' }}>
+                <Text strong>Image Quality</Text>
+                <Tooltip
+                  title={
+                    <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                      <div><strong>Original (0.92)</strong> — Preserves the original image quality. Largest file size.</div>
+                      <div style={{ marginTop: '6px' }}><strong>Medium (0.75)</strong> — Reduces quality moderately. File size may shrink by 40–60% while retaining acceptable visual quality.</div>
+                      <div style={{ marginTop: '6px' }}><strong>Low (0.50)</strong> — Further reduces quality. Visual degradation becomes noticeable, and the additional file size reduction is less significant compared to Medium.</div>
+                    </div>
+                  }
+                  overlayStyle={{ maxWidth: '320px' }}
+                >
+                  <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#8c8c8c', cursor: 'pointer' }} />
+                </Tooltip>
+                <Text strong>:</Text>
+              </Flex>
+              <Segmented
+                value={imageQuality}
+                onChange={(value) => setImageQuality(value as number)}
+                options={[
+                  { label: 'Original', value: 0.92 },
+                  { label: 'Medium', value: 0.75 },
+                  { label: 'Low', value: 0.5 }
+                ]}
+              />
+            </Flex>
+
+            {/* 第三行：分页导出设置 */}
+            <Flex align="center" gap={16}>
+              <Text strong style={{ minWidth: '110px' }}>Pages per File:</Text>
               <Radio.Group value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
                 <Space orientation="horizontal" size="large">
                   <Radio value="all">All in one file</Radio>
@@ -159,11 +190,11 @@ function ScanDialog() {
                   </Radio>
                 </Space>
               </Radio.Group>
-            </div>
+            </Flex>
 
-            {/* 第三行：导出范围选择 */}
-            <div>
-              <Text strong style={{ marginRight: '12px' }}>Export Range:</Text>
+            {/* 第四行：导出范围选择 */}
+            <Flex align="center" gap={16}>
+              <Text strong style={{ minWidth: '110px' }}>Export Range:</Text>
               <Radio.Group value={exportMode} onChange={(e) => setExportMode(e.target.value)}>
                 <Space orientation="horizontal" size="large" wrap>
                   <Radio value="all">All Pages</Radio>
@@ -195,7 +226,7 @@ function ScanDialog() {
                   <Radio value="selected">Selected ({selectedPages.size})</Radio>
                 </Space>
               </Radio.Group>
-            </div>
+            </Flex>
           </Flex>
         </Card>
 
@@ -242,6 +273,7 @@ function ScanDialog() {
           setSelectedPages={setSelectedPages}
           totalPages={imageState.totalPages}
           scrollContainerRef={scrollContainerRef}
+          title={metaInfo?.title ?? ""}
         />
 
         {/* Support Information */}

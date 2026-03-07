@@ -1,4 +1,7 @@
+import { useState } from "react"
 import { Checkbox, Typography } from "antd"
+import { DownloadOutlined } from "@ant-design/icons"
+import { generateImageFileName, downloadImage } from "../utils/imageDownload"
 
 const { Text } = Typography
 
@@ -19,6 +22,8 @@ interface PageThumbnailProps {
   onCheckChange: (checked: boolean) => void
   /** 封面/封底使用较窄宽度 */
   narrow?: boolean
+  /** 书名，用于生成下载文件名 */
+  title?: string
 }
 
 export function PageThumbnail({
@@ -28,14 +33,31 @@ export function PageThumbnail({
   showCheckbox,
   checked,
   onCheckChange,
-  narrow = false
+  narrow = false,
+  title = ""
 }: PageThumbnailProps) {
+  const [isHovered, setIsHovered] = useState(false)
+
   const itemStyle = narrow
     ? { position: "relative" as const, width: "auto" as const, maxWidth: "300px" }
     : { position: "relative" as const }
 
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await downloadImage(imgUrl, generateImageFileName(title, label))
+    } catch {
+      window.open(imgUrl, "_blank")
+    }
+  }
+
   return (
-    <div className="image-preview-item" style={itemStyle}>
+    <div
+      className="image-preview-item"
+      style={itemStyle}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {showCheckbox && (
         <Checkbox
           checked={checked}
@@ -50,6 +72,13 @@ export function PageThumbnail({
       />
       <div className="image-preview-overlay">
         <Text style={{ color: "white" }}>{label}</Text>
+        <button
+          className={`image-preview-download-btn${isHovered ? " visible" : ""}`}
+          onClick={handleDownload}
+          title="Download image"
+        >
+          <DownloadOutlined />
+        </button>
       </div>
     </div>
   )
