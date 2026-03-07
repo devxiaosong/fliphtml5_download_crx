@@ -5,6 +5,7 @@ interface PDFOptions {
   addWatermark: boolean
   title?: string
   homepage?: string
+  customPageSize?: { width: number; height: number }
   onProgress?: (current: number, total: number) => void
 }
 
@@ -275,8 +276,8 @@ export async function generatePDF(
     throw new Error('No images to generate PDF')
   }
 
-  const { orientation, addWatermark, title, homepage, onProgress } = options
-  const pageSize = PAGE_SIZES[orientation]
+  const { orientation, addWatermark, title, homepage, customPageSize, onProgress } = options
+  const pageSize = customPageSize ?? PAGE_SIZES[orientation]
   
   console.log(`Generating PDF with ${imageUrls.length} images...`)
   console.log(`Page size: ${pageSize.width}x${pageSize.height} points`)
