@@ -123,14 +123,14 @@ export default function ScanControl() {
         try {
           const urlObj = new URL(url)
           const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
-          
-          // 刷新页面，对话框会自动打开
+
           if (pathSegments.length < 2) {
             logInfo('force_reload', `Detected root or incomplete path, forcing reload | URL: ${url}`)
           } else {
-            logInfo('reload_page', `Reloading page to open dialog | URL: ${url}`)
+            logInfo('reload_page', `Reloading page with search param to open dialog | URL: ${url}`)
           }
-          chrome.tabs.reload(tab.id)
+          urlObj.searchParams.set('search', '1')
+          chrome.tabs.update(tab.id, { url: urlObj.toString() })
           return
         } catch (error) {
           console.error('Failed to parse URL:', error)
@@ -145,10 +145,8 @@ export default function ScanControl() {
           
           // 检查是否有至少 3 个路径段（格式：/seg1/seg2/seg3/）
           if (pathSegments.length >= 3) {
-            // 构建 online.fliphtml5.com URL，只取前两个分段
-            const onlineUrl = `https://online.fliphtml5.com/${pathSegments[0]}/${pathSegments[1]}`
-            
-            // 打开新的标签页
+            // 构建 online.fliphtml5.com URL，只取前两个分段，并带上 search 参数
+            const onlineUrl = `https://online.fliphtml5.com/${pathSegments[0]}/${pathSegments[1]}/?search=1`
             chrome.tabs.create({ url: onlineUrl })
             return
           } else {

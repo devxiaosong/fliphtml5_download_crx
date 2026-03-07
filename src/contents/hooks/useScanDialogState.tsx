@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Modal, message } from "antd"
 import { logInfo, getAppInfo } from "../../utils/misc"
+import { useTextExport } from "./useTextExport"
 
 export interface ImageState {
   thumbImages: string[]
@@ -48,31 +49,6 @@ function getHtmlConfig(): Promise<any> {
   })
 }
 
-function getTextForPages(): Promise<any[]> {
-  return new Promise((resolve) => {
-    const eventName = "textForPagesLoaded_" + Date.now()
-    window.addEventListener(
-      eventName,
-      (event: any) => resolve(event.detail),
-      { once: true }
-    )
-    const element = document.createElement("div")
-    element.style.display = "none"
-    element.setAttribute(
-      "onclick",
-      `
-      (function() {
-        const textForPages = (window.textForPages) || [];
-        window.dispatchEvent(new CustomEvent('${eventName}', { detail: textForPages }));
-      })();
-    `
-    )
-    document.documentElement.appendChild(element)
-    element.click()
-    element.remove()
-  })
-}
-
 const initialImageState: ImageState = {
   thumbImages: [],
   normalImages: [],
@@ -97,6 +73,9 @@ export function useScanDialogState(): UseScanDialogStateReturn {
   const [imageState, setImageState] = useState<ImageState>(initialImageState)
   const [metaInfo, setMetaInfo] = useState<MetaInfo | null>(null)
   const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
+  const metaInfoRef = useRef<MetaInfo | null>(null)
+
+  const { handleExtractText } = useTextExport({ metaInfoRef })
 
   const openScanDialog = useCallback(async () => {
     const currentUrl = window.location.href
@@ -125,6 +104,7 @@ export function useScanDialogState(): UseScanDialogStateReturn {
           pageHeight: pageConfig.htmlConfig_meta.pageHeight || 0
         }
         setMetaInfo(meta)
+        metaInfoRef.current = meta
 
         const baseUrl = currentUrl.split(/[#?]/)[0]
         const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/"
@@ -224,17 +204,6 @@ export function useScanDialogState(): UseScanDialogStateReturn {
     () => fliphtml5RulesRef.current?.homepage,
     []
   )
-
-  const handleExtractText = useCallback(async () => {
-    const currentUrl = window.location.href
-    logInfo("extract_text", `Extract text triggered | URL: ${currentUrl}`)
-    try {
-      const textForPages = await getTextForPages()
-      console.log("[textForPages]", textForPages)
-    } catch (error) {
-      console.error("Failed to read textForPages:", error)
-    }
-  }, [])
 
   return {
     visible,
