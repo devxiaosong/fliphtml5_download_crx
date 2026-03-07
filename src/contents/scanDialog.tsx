@@ -29,7 +29,7 @@ function ScanDialog() {
     handleExtractText
   } = useScanDialogState()
 
-  const [pdfOrientation, setPdfOrientation] = useState<PDFOrientationUI>("auto")
+  const [pdfOrientation, setPdfOrientation] = useState<PDFOrientationUI>("portrait")
   const [imagesPerRow, setImagesPerRow] = useState<2 | 4 | 6>(4)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -128,10 +128,10 @@ function ScanDialog() {
                 value={pdfOrientation}
                 onChange={(value) => setPdfOrientation(value as PDFOrientationUI)}
                 options={[
-                  { label: 'Auto Fit', value: 'auto', icon: <CompressOutlined /> },
                   { label: 'Portrait', value: 'portrait', icon: <FileTextOutlined /> },
                   { label: 'Landscape', value: 'landscape', icon: <LayoutOutlined /> },
-                  { label: 'Square', value: 'square', icon: <BorderOutlined /> }
+                  { label: 'Square', value: 'square', icon: <BorderOutlined /> },
+                  { label: 'Auto Fit', value: 'auto', icon: <CompressOutlined /> }
                 ]}
               />
             </Flex>

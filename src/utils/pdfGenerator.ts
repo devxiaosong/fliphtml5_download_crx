@@ -67,7 +67,7 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 // 将图片转换为带水印的 canvas
-async function imageToCanvas(
+export async function imageToCanvas(
   imageUrl: string, 
   addWatermark: boolean
 ): Promise<HTMLCanvasElement> {

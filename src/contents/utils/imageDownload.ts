@@ -11,8 +11,15 @@ export function generateImageFileName(title: string, label: string): string {
 }
 
 export async function downloadImage(imgUrl: string, fileName: string): Promise<void> {
-  const response = await fetch(imgUrl)
-  const blob = await response.blob()
+  const { imageToCanvas } = await import("../../utils/pdfGenerator")
+  const canvas = await imageToCanvas(imgUrl, true)
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+      "image/jpeg",
+      0.92
+    )
+  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
