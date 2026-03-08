@@ -6,13 +6,23 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 // 用 chrome.storage.local 替代 localStorage，实现跨页面共享 session
 const chromeStorageAdapter = {
   getItem: (key) =>
-    new Promise((resolve) =>
-      chrome.storage.local.get(key, (result) => resolve(result[key] ?? null))
-    ),
+    new Promise((resolve) => {
+      chrome.storage.local.get(key, (result) => {
+        const val = result[key] ?? null
+        console.log(`[storage] getItem "${key}":`, val ? "found" : "null")
+        resolve(val)
+      })
+    }),
   setItem: (key, value) =>
-    new Promise((resolve) => chrome.storage.local.set({ [key]: value }, resolve)),
+    new Promise((resolve) => {
+      console.log(`[storage] setItem "${key}"`)
+      chrome.storage.local.set({ [key]: value }, resolve)
+    }),
   removeItem: (key) =>
-    new Promise((resolve) => chrome.storage.local.remove(key, resolve))
+    new Promise((resolve) => {
+      console.log(`[storage] removeItem "${key}"`)
+      chrome.storage.local.remove(key, resolve)
+    })
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

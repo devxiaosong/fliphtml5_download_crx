@@ -1,11 +1,23 @@
 // Background script for Chrome extension
-import { supabase } from "./supabaseClient"
+// Service Worker 环境下 Supabase adapter 不生效，直接操作 chrome.storage.local
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "openExtractTextPage") {
     const url = chrome.runtime.getURL("tabs/extract-text.html")
     chrome.tabs.create({ url })
     sendResponse({ success: true })
+  }
+
+  if (message.action === "openDashboard") {
+    const url = chrome.runtime.getURL("tabs/dashboard.html")
+    chrome.tabs.query({ url }, (tabs) => {
+      if (tabs.length > 0 && tabs[0].id != null) {
+        chrome.tabs.update(tabs[0].id, { active: true })
+        if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true })
+      } else {
+        chrome.tabs.create({ url })
+      }
+    })
   }
 
   if (message.type === "SUPABASE_TOKEN") {
@@ -18,39 +30,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const targetUrl = message.target as string
 
     if (!accessToken || !refreshToken || !targetUrl) {
-      console.warn("[background] SUPABASE_TOKEN: missing token or target", { accessToken: !!accessToken, refreshToken: !!refreshToken, targetUrl })
+      console.warn("[background] missing token or target")
       return
     }
 
-    console.log("[background] SUPABASE_TOKEN received, calling setSession...")
+    // 直接存原始 token，由目标页（popup/dashboard）读取后调 setSession()
+    chrome.storage.local.set({
+      fliphtml5_pending_session: { access_token: accessToken, refresh_token: refreshToken }
+    }, () => {
+      console.log("[background] pending session stored, opening:", targetUrl)
 
-    // Supabase 自动通过 chromeStorageAdapter 持久化 session
-    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("[background] setSession failed:", error.message)
-          return
-        }
-        console.log("[background] setSession success, user:", data.user?.email)
-
-        // 关闭中转回调页
-        chrome.tabs.query({ url: "https://product.extensionkit.cc/auth/callback*" }, (callbackTabs) => {
-          console.log("[background] closing callback tabs:", callbackTabs.length)
-          callbackTabs.forEach((tab) => { if (tab.id != null) chrome.tabs.remove(tab.id) })
-        })
-
-        // 打开或聚焦目标页
-        chrome.tabs.query({ url: targetUrl }, (tabs) => {
-          if (tabs.length > 0 && tabs[0].id != null) {
-            console.log("[background] focusing existing tab:", targetUrl)
-            chrome.tabs.update(tabs[0].id, { active: true })
-            if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true })
-          } else {
-            console.log("[background] creating new tab:", targetUrl)
-            chrome.tabs.create({ url: targetUrl })
-          }
-        })
+      // 关闭中转回调页
+      chrome.tabs.query({ url: "https://product.extensionkit.cc/auth/callback*" }, (callbackTabs) => {
+        callbackTabs.forEach((tab) => { if (tab.id != null) chrome.tabs.remove(tab.id) })
       })
+
+      // 打开或聚焦目标页
+      chrome.tabs.query({ url: targetUrl }, (tabs) => {
+        if (tabs.length > 0 && tabs[0].id != null) {
+          chrome.tabs.update(tabs[0].id, { active: true })
+          if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true })
+        } else {
+          chrome.tabs.create({ url: targetUrl })
+        }
+      })
+    })
   }
 
   return true
