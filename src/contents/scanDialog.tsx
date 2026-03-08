@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Segmented, InputNumber, Radio, Tooltip, Avatar } from "antd"
 import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons"
 import type { PDFOrientation } from "../utils/pdfGenerator"
-import { useSupabaseAuth } from "../hooks/useSupabaseAuth"
+import { useUserInfo } from "../hooks/useSupabaseAuth"
 
 type PDFOrientationUI = PDFOrientation | "auto"
 import { usePdfExport } from "./hooks/usePdfExport"
@@ -30,7 +30,7 @@ function ScanDialog() {
     handleExtractText
   } = useScanDialogState()
 
-  const { user } = useSupabaseAuth()
+  const { user } = useUserInfo()
 
   const openDashboard = () => {
     // content script 无法直接调 chrome.tabs，通过 background 转发
@@ -119,19 +119,12 @@ function ScanDialog() {
         title={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '32px' }}>
             <span>FlipHTML5 Scanner</span>
-            <Tooltip title={user ? `${user.user_metadata?.full_name || user.email} · Dashboard` : "Sign in · Dashboard"}>
+            <Tooltip title={user ? `${user.name || user.email} · Dashboard` : "Sign in · Dashboard"}>
               <div onClick={openDashboard} style={{ cursor: 'pointer', lineHeight: 0 }}>
-                {user?.user_metadata?.avatar_url ? (
-                  <Avatar
-                    size={28}
-                    src={user.user_metadata.avatar_url as string}
-                  />
+                {user?.avatar_url ? (
+                  <Avatar size={28} src={user.avatar_url} />
                 ) : (
-                  <Avatar
-                    size={28}
-                    icon={<UserOutlined />}
-                    style={{ background: '#d9d9d9' }}
-                  />
+                  <Avatar size={28} icon={<UserOutlined />} style={{ background: '#d9d9d9' }} />
                 )}
               </div>
             </Tooltip>

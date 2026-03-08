@@ -1,7 +1,26 @@
 // Background script for Chrome extension
-// Service Worker 环境下 Supabase adapter 不生效，直接操作 chrome.storage.local
+import { supabase } from "./supabaseClient"
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 返回当前登录用户的精简信息（email / name / avatar_url），未登录返回 null
+  if (message.action === "getUser") {
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user ?? null
+      if (user) {
+        const meta = user.user_metadata ?? {}
+        sendResponse({
+          email: user.email ?? "",
+          name: String(meta.full_name ?? meta.name ?? user.email ?? ""),
+          avatar_url: String(meta.avatar_url ?? meta.picture ?? "")
+        })
+      } else {
+        sendResponse(null)
+      }
+    })()
+    return true
+  }
+
   if (message.action === "openExtractTextPage") {
     const url = chrome.runtime.getURL("tabs/extract-text.html")
     chrome.tabs.create({ url })

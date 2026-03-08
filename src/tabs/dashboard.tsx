@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { ConfigProvider, Button, Avatar, Typography, Card, Spin, Divider, Space } from "antd"
 import { GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined } from "@ant-design/icons"
 import { useSupabaseAuth } from "../hooks/useSupabaseAuth"
@@ -35,7 +36,20 @@ function Dashboard() {
   )
 }
 
-function LoginPanel({ onSignIn }: { onSignIn: () => void }) {
+function LoginPanel({ onSignIn }: { onSignIn: () => Promise<void> }) {
+  const [signingIn, setSigningIn] = useState(false)
+
+  const handleSignIn = async () => {
+    setSigningIn(true)
+    try {
+      await onSignIn()
+    } finally {
+      // signInWithOAuth 会跳转离开此页，finally 不一定执行；
+      // 若跳转未发生（报错等），则重置 loading 避免卡死
+      setSigningIn(false)
+    }
+  }
+
   return (
     <div className="dashboard-center">
       <Card className="dashboard-card" variant="outlined">
@@ -53,11 +67,12 @@ function LoginPanel({ onSignIn }: { onSignIn: () => void }) {
             type="primary"
             size="large"
             icon={<GoogleOutlined />}
-            onClick={onSignIn}
+            onClick={handleSignIn}
+            loading={signingIn}
             block
             style={{ height: 44 }}
           >
-            Continue with Google
+            {signingIn ? "Redirecting to Google..." : "Continue with Google"}
           </Button>
         </div>
       </Card>

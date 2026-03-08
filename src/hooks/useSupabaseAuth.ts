@@ -14,21 +14,6 @@ export interface SimpleUser {
   avatar_url: string
 }
 
-/** 将登录用户的精简信息持久化到 chrome.storage，供 content script 等跨上下文读取 */
-async function saveUserToStorage(user: User | null) {
-  if (user) {
-    const meta = user.user_metadata ?? {}
-    const info: SimpleUser = {
-      email: user.email ?? "",
-      name: meta.full_name ?? meta.name ?? user.email ?? "",
-      avatar_url: meta.avatar_url ?? meta.picture ?? ""
-    }
-    await chrome.storage.local.set({ fliphtml5_user: info })
-  } else {
-    await chrome.storage.local.remove("fliphtml5_user")
-  }
-}
-
 export function useSupabaseAuth() {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
@@ -42,7 +27,6 @@ export function useSupabaseAuth() {
       if (event === "INITIAL_SESSION") return
       const user = session?.user ?? null
       setAuthState({ user, session, loading: false })
-      saveUserToStorage(user)
     })
 
     const init = async () => {
@@ -61,16 +45,13 @@ export function useSupabaseAuth() {
         })
         console.log("[useSupabaseAuth] setSession:", data.user?.email ?? "null", error?.message ?? "")
         setAuthState({ user: data.user ?? null, session: data.session ?? null, loading: false })
-        await saveUserToStorage(data.user ?? null)
         return
       }
 
       // 无 pending session，读取已有 session
       const { data: { session } } = await supabase.auth.getSession()
       console.log("[useSupabaseAuth] getSession:", session?.user?.email ?? "null")
-      const user = session?.user ?? null
-      setAuthState({ user, session, loading: false })
-      await saveUserToStorage(user)
+      setAuthState({ user: session?.user ?? null, session, loading: false })
     }
 
     init()
@@ -88,7 +69,6 @@ export function useSupabaseAuth() {
 
   const signOut = async () => {
     await supabase.auth.signOut()
-    await saveUserToStorage(null)
   }
 
   return {
@@ -99,24 +79,35 @@ export function useSupabaseAuth() {
 }
 
 /**
- * 轻量 hook，仅从 chrome.storage 读取已持久化的用户信息。
- * 适用于 content script（无法可靠运行完整 Supabase 客户端的场景）。
+ * 轻量 hook，通过 background 消息获取当前登录用户信息。
+ * 适用于 content script——background 是唯一可靠读取 Supabase session 的上下文。
+ * 监听 chrome.storage 变化（Supabase 的 sb-* key），自动触发重新获取。
  */
 export function useUserInfo() {
   const [user, setUser] = useState<SimpleUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 初次读取
-    chrome.storage.local.get("fliphtml5_user", (result) => {
-      setUser((result.fliphtml5_user as SimpleUser) ?? null)
-      setLoading(false)
-    })
+    const fetchUser = () => {
+      chrome.runtime.sendMessage({ action: "getUser" }, (response: SimpleUser | null) => {
+        // chrome.runtime.lastError 在对端不处理时会出现，忽略即可
+        if (chrome.runtime.lastError) {
+          setLoading(false)
+          return
+        }
+        setUser(response ?? null)
+        setLoading(false)
+      })
+    }
 
-    // 监听后续变化（登录/登出后同步更新）
+    fetchUser()
+
+    // 监听 Supabase 在 chrome.storage 里的 session key（sb-* 前缀）变化
+    // 登录 / 登出均会触发，重新向 background 获取最新用户信息
     const listener = (changes: Record<string, chrome.storage.StorageChange>) => {
-      if ("fliphtml5_user" in changes) {
-        setUser((changes.fliphtml5_user.newValue as SimpleUser) ?? null)
+      const keys = Object.keys(changes)
+      if (keys.some((k) => k.startsWith("sb-") || k === "fliphtml5_pending_session")) {
+        fetchUser()
       }
     }
     chrome.storage.onChanged.addListener(listener)
