@@ -169,7 +169,7 @@ function ScanDialog() {
                       <div style={{ marginTop: '6px' }}><strong>Low (0.50)</strong> — Further reduces quality. Visual degradation becomes noticeable, and the additional file size reduction is less significant compared to Medium.</div>
                     </div>
                   }
-                  overlayStyle={{ maxWidth: '320px' }}
+                  styles={{ root: { maxWidth: '320px' } }}
                 >
                   <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#8c8c8c', cursor: 'pointer' }} />
                 </Tooltip>
