@@ -59,10 +59,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }, () => {
       console.log("[background] pending session stored, opening:", targetUrl)
 
-      // 关闭中转回调页
-      chrome.tabs.query({ url: "https://product.extensionkit.cc/auth/callback*" }, (callbackTabs) => {
-        callbackTabs.forEach((tab) => { if (tab.id != null) chrome.tabs.remove(tab.id) })
-      })
+      // 关闭中转回调页（直接用 sender.tab.id，无需额外 host_permissions）
+      if (sender.tab?.id != null) {
+        chrome.tabs.remove(sender.tab.id)
+      }
 
       // 打开或聚焦目标页
       chrome.tabs.query({ url: targetUrl }, (tabs) => {
