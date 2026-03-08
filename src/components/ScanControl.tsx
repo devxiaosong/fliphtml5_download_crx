@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
-import { Button, Slider, Flex, Typography, Divider } from "antd"
-import { PlayCircleOutlined, LinkOutlined, FileImageOutlined } from "@ant-design/icons"
+import { Button, Slider, Flex, Typography, Divider, Avatar, Tooltip } from "antd"
+import { PlayCircleOutlined, LinkOutlined, FileImageOutlined, UserOutlined } from "@ant-design/icons"
 import { logInfo } from "../utils/misc"
+import { useSupabaseAuth } from "../hooks/useSupabaseAuth"
 
 const { Text, Link, Title } = Typography
 
@@ -28,6 +29,11 @@ const getPageInfo = async (): Promise<string> => {
 export default function ScanControl() {
   const [scanSpeed, setScanSpeed] = useState(3000)  // 默认最慢档
   const [isButtonEnabled, setIsButtonEnabled] = useState(false)
+  const { user } = useSupabaseAuth()
+
+  const openDashboard = () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("tabs/dashboard.html") })
+  }
 
   // 检查当前页面是否是有效的 FlipHTML5 页面
   const checkCurrentPage = async () => {
@@ -173,16 +179,42 @@ export default function ScanControl() {
       {/* 标题栏 */}
       <div style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: '12px 0',
-        textAlign: 'center',
-        margin: 0
+        padding: '12px 16px',
+        margin: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
       }}>
-        <Flex align="center" justify="center" gap="small">
+        <Flex align="center" gap="small">
           <FileImageOutlined style={{ fontSize: '22px', color: '#fff' }} />
           <Title level={4} style={{ margin: 0, color: '#fff', fontWeight: 600, fontSize: '18px' }}>
             FlipHTML5 Downloader
           </Title>
         </Flex>
+        <Tooltip title={user ? `${user.user_metadata?.full_name || user.email} · Dashboard` : "Sign in · Dashboard"}>
+          <div
+            onClick={openDashboard}
+            style={{ cursor: 'pointer', lineHeight: 0 }}
+          >
+            {user?.user_metadata?.avatar_url ? (
+              <Avatar
+                size={28}
+                src={user.user_metadata.avatar_url as string}
+                style={{ border: '2px solid rgba(255,255,255,0.8)' }}
+              />
+            ) : (
+              <Avatar
+                size={28}
+                icon={<UserOutlined />}
+                style={{
+                  background: 'rgba(255,255,255,0.25)',
+                  border: '2px solid rgba(255,255,255,0.6)',
+                  color: '#fff'
+                }}
+              />
+            )}
+          </div>
+        </Tooltip>
       </div>
 
       <div style={{ padding: '0 16px 20px 16px' }}>

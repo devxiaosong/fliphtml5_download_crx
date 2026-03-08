@@ -27,6 +27,15 @@ export let appInfo: AppInfo | null = null
 export let memebership: any | null = null
 
 
+export async function triggerGoogleLogin() {
+    logInfo('login', 'clicked')
+    const redirectTo = 'https://product.extensionkit.cc/auth/callback'
+    await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo }
+    })
+}
+
 export function logDebug(eventName:string, eventBody:string) {
     logEventInfo(eventName, eventBody,'debug')
 }
