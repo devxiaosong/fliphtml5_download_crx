@@ -3,4 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://qbedzukaxpsvpodfmhqj.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiZWR6dWtheHBzdnBvZGZtaHFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODgxOTMxNDUsImV4cCI6MjAwMzc2OTE0NX0.lzRgom-8Kqn3iwnt-6ja2iUEG8q6gpc7vuuU8-Se4lY'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// 用 chrome.storage.local 替代 localStorage，实现跨页面共享 session
+const chromeStorageAdapter = {
+  getItem: (key) =>
+    new Promise((resolve) =>
+      chrome.storage.local.get(key, (result) => resolve(result[key] ?? null))
+    ),
+  setItem: (key, value) =>
+    new Promise((resolve) => chrome.storage.local.set({ [key]: value }, resolve)),
+  removeItem: (key) =>
+    new Promise((resolve) => chrome.storage.local.remove(key, resolve))
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: chromeStorageAdapter,
+    persistSession: true,
+    autoRefreshToken: true
+  }
+})

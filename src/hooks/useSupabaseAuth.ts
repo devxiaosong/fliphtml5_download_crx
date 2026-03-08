@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import type { User, Session } from "@supabase/supabase-js"
 import { supabase } from "../supabaseClient"
-import { triggerGoogleLogin } from "../utils/misc"
 
 export interface AuthState {
   user: User | null
@@ -17,8 +16,10 @@ export function useSupabaseAuth() {
   })
 
   useEffect(() => {
-    // 监听登录状态变化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // INITIAL_SESSION 在异步 storage 读完前就触发，会误报 null，跳过它
+    // 后续的 SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED 正常处理
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return
       setAuthState({
         user: session?.user ?? null,
         session,
@@ -26,32 +27,25 @@ export function useSupabaseAuth() {
       })
     })
 
-    // 检查 background 存入的 OAuth session（postMessage 流程）
-    chrome.storage.local.get("supabase_session", async (result) => {
-      const stored = result.supabase_session as { access_token?: string; refresh_token?: string } | undefined
-      if (stored?.access_token && stored?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: stored.access_token,
-          refresh_token: stored.refresh_token
-        })
-        // 用完即清，避免重复消费
-        chrome.storage.local.remove("supabase_session")
-      } else {
-        // 没有待消费的 session，读取已有的
-        const { data: { session } } = await supabase.auth.getSession()
-        setAuthState({
-          user: session?.user ?? null,
-          session,
-          loading: false
-        })
-      }
+    // 初始状态由 getSession() 决定，它会正确等待异步 storage 读取完成
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthState({
+        user: session?.user ?? null,
+        session,
+        loading: false
+      })
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  const signIn = () => {
-    triggerGoogleLogin()
+  const signIn = async () => {
+    const target = chrome.runtime.getURL("tabs/dashboard.html")
+    const redirectTo = `https://product.extensionkit.cc/auth/callback?target=${encodeURIComponent(target)}`
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo }
+    })
   }
 
   const signOut = async () => {
