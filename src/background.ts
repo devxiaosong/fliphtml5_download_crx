@@ -19,17 +19,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       token_type: params.get("token_type") ?? "bearer"
     }
 
+    // target 由发起方传入，fallback 到 dashboard
+    const targetUrl = (message.target as string | undefined) ?? chrome.runtime.getURL("tabs/dashboard.html")
+
     chrome.storage.local.set({ supabase_session: session }, () => {
-      // 登录成功后自动打开或聚焦 dashboard
-      const dashboardUrl = chrome.runtime.getURL("tabs/dashboard.html")
-      chrome.tabs.query({ url: dashboardUrl }, (tabs) => {
+      chrome.tabs.query({ url: targetUrl }, (tabs) => {
         if (tabs.length > 0 && tabs[0].id != null) {
           chrome.tabs.update(tabs[0].id, { active: true })
           if (tabs[0].windowId != null) {
             chrome.windows.update(tabs[0].windowId, { focused: true })
           }
         } else {
-          chrome.tabs.create({ url: dashboardUrl })
+          chrome.tabs.create({ url: targetUrl })
         }
       })
     })
