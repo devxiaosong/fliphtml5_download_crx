@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Segmented, InputNumber, Radio, Tooltip, Avatar } from "antd"
 import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons"
 import type { PDFOrientation } from "../utils/pdfGenerator"
-import { useUserInfo } from "../hooks/useSupabaseAuth"
+import { useUserInfo } from "../core/useSupabaseAuth"
 
 type PDFOrientationUI = PDFOrientation | "auto"
 import { usePdfExport } from "./hooks/usePdfExport"

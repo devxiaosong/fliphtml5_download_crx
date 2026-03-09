@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 import { message } from "antd"
-import { logInfo } from "../../utils/misc"
+import { logInfo } from "../../core/misc"
 import type { MetaInfo } from "./useScanDialogState"
 
 function getTextForPages(): Promise<any[]> {

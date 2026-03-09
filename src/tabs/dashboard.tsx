@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ConfigProvider, Button, Avatar, Typography, Card, Spin, Divider, Space } from "antd"
 import { GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined } from "@ant-design/icons"
-import { useSupabaseAuth } from "../hooks/useSupabaseAuth"
+import { useSupabaseAuth } from "../core/useSupabaseAuth"
 import "./dashboard.css"
 
 const { Title, Text } = Typography

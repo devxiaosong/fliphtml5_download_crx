@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { User, Session } from "@supabase/supabase-js"
-import { supabase } from "../supabaseClient"
+import { supabase } from "./supabaseClient"
 
 export interface AuthState {
   user: User | null

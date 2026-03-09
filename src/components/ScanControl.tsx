@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react"
 import { Button, Slider, Flex, Typography, Divider, Avatar, Tooltip } from "antd"
 import { PlayCircleOutlined, LinkOutlined, FileImageOutlined, UserOutlined } from "@ant-design/icons"
-import { logInfo } from "../utils/misc"
-import { useSupabaseAuth } from "../hooks/useSupabaseAuth"
+import { logInfo } from "../core/misc"
+import { useSupabaseAuth } from "../core/useSupabaseAuth"
 
 const { Text, Link, Title } = Typography
 

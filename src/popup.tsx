@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { ConfigProvider } from "antd"
-import { logInfo } from "./utils/misc"
+import { logInfo } from "./core/misc"
 import ScanControl from "./components/ScanControl"
 import "./popup.css"
 

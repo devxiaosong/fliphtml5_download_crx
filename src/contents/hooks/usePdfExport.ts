@@ -2,7 +2,7 @@ import { useState, useCallback } from "react"
 import { message } from "antd"
 import { generatePDF, downloadPDF } from "../../utils/pdfGenerator"
 import type { PDFOrientation } from "../../utils/pdfGenerator"
-import { logInfo } from "../../utils/misc"
+import { logInfo } from "../../core/misc"
 
 export interface PdfProgressState {
   currentFile: number

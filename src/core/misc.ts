@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient'
+import { supabase } from './supabaseClient'
 import { productInfo } from './config'
 
 // 定义应用信息接口

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Modal, message } from "antd"
-import { logInfo, getAppInfo } from "../../utils/misc"
+import { logInfo, getAppInfo } from "../../core/misc"
 import { useTextExport } from "./useTextExport"
 
 export interface ImageState {
