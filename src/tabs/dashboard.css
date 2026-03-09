@@ -1,76 +1,336 @@
-.dashboard-root {
+/* ── Root ──────────────────────────────────────────────────────────────────── */
+
+.db-root {
   min-height: 100vh;
-  background: #f5f6fa;
+  background: #f0f2f7;
   display: flex;
   flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.dashboard-header {
+/* ── Header ────────────────────────────────────────────────────────────────── */
+
+.db-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 16px 24px;
+  padding: 18px 48px;
+  box-shadow: 0 2px 12px rgba(102, 126, 234, 0.35);
+}
+
+.db-header-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.dashboard-body {
-  flex: 1;
-  padding: 32px 24px;
-  max-width: 520px;
-  width: 100%;
-  margin: 0 auto;
-  overflow-y: auto;
-}
-
-.dashboard-center {
+.db-header-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  flex-shrink: 0;
 }
 
-.dashboard-card {
+.db-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.db-header-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 2px;
+}
+
+/* ── Main layout ───────────────────────────────────────────────────────────── */
+
+.db-main {
+  flex: 1;
+  padding: 40px 48px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.db-columns {
+  display: flex;
+  gap: 24px;
   width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  max-width: 920px;
+  align-items: flex-start;
 }
 
-/* Login */
-.login-panel {
+.db-col-left {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.db-col-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.db-col-loading {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+/* ── Account Card ──────────────────────────────────────────────────────────── */
+
+.ac-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 24px 28px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px 0;
+  text-align: center;
 }
 
-.login-icon-wrap {
-  width: 80px;
-  height: 80px;
+.ac-avatar-ring {
+  display: inline-flex;
+  padding: 3px;
   border-radius: 50%;
-  background: #f0f0f0;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  margin-bottom: 16px;
+}
+
+.ac-name {
+  margin: 0 0 4px !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
+}
+
+.ac-email {
+  font-size: 13px !important;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.ac-divider {
+  width: 100%;
+  margin: 24px 0 20px !important;
+}
+
+.ac-signout {
+  border-color: #ff7875 !important;
+  color: #ff4d4f !important;
+}
+
+.ac-signout:hover {
+  background: rgba(255, 77, 79, 0.05) !important;
+}
+
+/* ── Login Card ────────────────────────────────────────────────────────────── */
+
+.lc-icon-wrap {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.12));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Profile */
-.profile-wrap {
-  width: 100%;
+.lc-signin-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  border: none !important;
+  height: 46px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4) !important;
 }
 
-.profile-info {
+.lc-signin-btn:hover {
+  opacity: 0.92 !important;
+}
+
+/* ── Pricing Card ──────────────────────────────────────────────────────────── */
+
+.pc-card {
+  background: #fff;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+}
+
+/* Gradient header */
+.pc-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 28px 32px;
+  color: #fff;
+  position: relative;
+}
+
+.pc-promo-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 12px;
+}
+
+.pc-pro-tag {
+  font-size: 13px !important;
+  padding: 4px 14px !important;
+  margin-bottom: 12px !important;
+  border-radius: 20px !important;
+}
+
+.pc-header-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.pc-header-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.5;
+}
+
+/* Body */
+.pc-body {
+  padding: 28px 32px;
+}
+
+/* Feature grid */
+.pc-feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+}
+
+.pc-feature-item {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
-.profile-text {
-  flex: 1;
-  overflow: hidden;
+.pc-feature-icon {
+  color: #52c41a;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
-.profile-text span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Tier selector */
+.pc-tier-row {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.pc-tier-btn {
+  min-width: 90px;
+  font-weight: 600;
+}
+
+/* Price box */
+.pc-price-box {
+  text-align: center;
+  background: #f7f8fc;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.pc-price-main {
+  font-size: 42px;
+  font-weight: 800;
+  color: #1a1a2e;
+  line-height: 1;
+}
+
+.pc-price-original {
+  font-size: 18px;
+  color: #c0c0c0;
+  text-decoration: line-through;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.pc-price-period {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Money-back */
+.pc-money-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #52c41a;
+  margin-bottom: 18px;
+  letter-spacing: 0.2px;
+}
+
+/* Subscribe button */
+.pc-sub-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  height: 50px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px rgba(102, 126, 234, 0.45) !important;
+  letter-spacing: 0.3px;
+}
+
+.pc-sub-btn:hover {
+  opacity: 0.92 !important;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.55) !important;
+}
+
+/* Unsubscribe button */
+.pc-unsub-btn {
+  height: 50px !important;
+  border-radius: 12px !important;
+}
+
+/* ToS row */
+.pc-tos-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pc-tos-link {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.pc-tos-link:hover {
+  text-decoration: underline;
+}
+
+/* Security note */
+.pc-security {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #bfbfbf;
+  text-align: center;
+}
+
+.pc-security strong {
+  color: #8c8c8c;
 }

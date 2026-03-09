@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react"
-import { ConfigProvider, Button, Avatar, Typography, Card, Spin, Divider, Space, Radio, Checkbox, Tag, message } from "antd"
+import { ConfigProvider, Button, Avatar, Typography, Spin, Radio, Checkbox, Tag, Divider, message } from "antd"
 import {
   GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined,
-  CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined
+  CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined, SafetyCertificateOutlined
 } from "@ant-design/icons"
 import { useSupabaseAuth } from "../core/useSupabaseAuth"
 import { getTierList, getMembership, makeSubscriptionOrder } from "../core/misc"
@@ -11,97 +11,67 @@ import "./dashboard.css"
 const { Title, Text } = Typography
 
 const FEATURES = [
-  "Download unlimited PDF files",
-  "No watermarks on exported PDFs",
+  "Unlimited PDF downloads",
+  "No watermarks",
   "High-quality image export",
   "Priority support",
 ]
 
 const TERMS_URL = "https://extensionkit.cc/terms-of-service"
 
+// ─── Root ────────────────────────────────────────────────────────────────────
+
 function Dashboard() {
   const { user, loading, signIn, signOut } = useSupabaseAuth()
 
   return (
     <ConfigProvider>
-      <div className="dashboard-root">
-        <div className="dashboard-header">
-          <FileImageOutlined style={{ fontSize: 24, color: "#fff" }} />
-          <Title level={4} style={{ margin: 0, color: "#fff", fontWeight: 600 }}>
-            FlipHTML5 Downloader
-          </Title>
+      <div className="db-root">
+
+        {/* Header */}
+        <div className="db-header">
+          <div className="db-header-brand">
+            <div className="db-header-icon-wrap">
+              <FileImageOutlined style={{ fontSize: 22, color: "#fff" }} />
+            </div>
+            <div>
+              <div className="db-header-title">FlipHTML5 Downloader</div>
+              <div className="db-header-sub">Manage your account and subscription</div>
+            </div>
+          </div>
         </div>
 
-        <div className="dashboard-body">
-          {loading ? (
-            <div className="dashboard-center">
-              <Spin size="large" />
+        {/* Two-column body */}
+        <div className="db-main">
+          <div className="db-columns">
+
+            {/* Left: Account */}
+            <div className="db-col-left">
+              {loading
+                ? <div className="db-col-loading"><Spin size="large" /></div>
+                : user
+                  ? <AccountCard user={user} onSignOut={signOut} />
+                  : <LoginCard onSignIn={signIn} />
+              }
             </div>
-          ) : (
-            <Space direction="vertical" size="large" style={{ width: "100%" }}>
-              {user ? (
-                <UserProfile user={user} onSignOut={signOut} />
-              ) : (
-                <LoginPanel onSignIn={signIn} />
-              )}
-              <PricingPanel isLoggedIn={!!user} />
-            </Space>
-          )}
+
+            {/* Right: Pricing */}
+            <div className="db-col-right">
+              <PricingPanel isLoggedIn={!!user && !loading} />
+            </div>
+
+          </div>
         </div>
       </div>
     </ConfigProvider>
   )
 }
 
-// ─── Login Panel ─────────────────────────────────────────────────────────────
+// ─── Account Card (logged in) ────────────────────────────────────────────────
 
-function LoginPanel({ onSignIn }: { onSignIn: () => Promise<void> }) {
-  const [signingIn, setSigningIn] = useState(false)
-
-  const handleSignIn = async () => {
-    setSigningIn(true)
-    try {
-      await onSignIn()
-    } finally {
-      setSigningIn(false)
-    }
-  }
-
-  return (
-    <div className="dashboard-center">
-      <Card className="dashboard-card" variant="outlined">
-        <div className="login-panel">
-          <div className="login-icon-wrap">
-            <UserOutlined style={{ fontSize: 48, color: "#bfbfbf" }} />
-          </div>
-          <Title level={4} style={{ margin: "16px 0 8px" }}>
-            Sign in to your account
-          </Title>
-          <Text type="secondary" style={{ display: "block", marginBottom: 24, textAlign: "center" }}>
-            Sync your download history and settings across devices
-          </Text>
-          <Button
-            type="primary"
-            size="large"
-            icon={<GoogleOutlined />}
-            onClick={handleSignIn}
-            loading={signingIn}
-            block
-            style={{ height: 44 }}
-          >
-            {signingIn ? "Redirecting to Google..." : "Continue with Google"}
-          </Button>
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-// ─── User Profile ─────────────────────────────────────────────────────────────
-
-function UserProfile({
+function AccountCard({
   user,
-  onSignOut
+  onSignOut,
 }: {
   user: NonNullable<ReturnType<typeof useSupabaseAuth>["user"]>
   onSignOut: () => void
@@ -111,32 +81,71 @@ function UserProfile({
   const email = user.email || ""
 
   return (
-    <Card className="dashboard-card" variant="outlined">
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-        <div className="profile-info">
-          <Avatar
-            size={64}
-            src={avatarUrl}
-            icon={!avatarUrl ? <UserOutlined /> : undefined}
-            style={{ flexShrink: 0 }}
-          />
-          <div className="profile-text">
-            <Text strong style={{ fontSize: 16, display: "block" }}>
-              {fullName}
-            </Text>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {email}
-            </Text>
-          </div>
-        </div>
+    <div className="ac-card">
+      {/* Avatar with gradient ring */}
+      <div className="ac-avatar-ring">
+        <Avatar
+          size={72}
+          src={avatarUrl}
+          icon={!avatarUrl ? <UserOutlined /> : undefined}
+        />
+      </div>
 
-        <Divider style={{ margin: "4px 0" }} />
+      <Title level={4} className="ac-name">{fullName}</Title>
+      <Text type="secondary" className="ac-email">{email}</Text>
 
-        <Button icon={<LogoutOutlined />} onClick={onSignOut} block danger>
-          Sign Out
-        </Button>
-      </Space>
-    </Card>
+      <Divider className="ac-divider" />
+
+      <Button
+        icon={<LogoutOutlined />}
+        onClick={onSignOut}
+        block
+        danger
+        ghost
+        size="large"
+        className="ac-signout"
+      >
+        Sign Out
+      </Button>
+    </div>
+  )
+}
+
+// ─── Login Card (logged out) ─────────────────────────────────────────────────
+
+function LoginCard({ onSignIn }: { onSignIn: () => Promise<void> }) {
+  const [signingIn, setSigningIn] = useState(false)
+
+  const handleSignIn = async () => {
+    setSigningIn(true)
+    try { await onSignIn() } finally { setSigningIn(false) }
+  }
+
+  return (
+    <div className="ac-card">
+      <div className="lc-icon-wrap">
+        <FileImageOutlined style={{ fontSize: 36, color: "#667eea" }} />
+      </div>
+
+      <Title level={4} className="ac-name" style={{ marginTop: 16 }}>Welcome</Title>
+      <Text type="secondary" className="ac-email">
+        Sign in to manage your subscription and settings
+      </Text>
+
+      <Divider className="ac-divider" />
+
+      <Button
+        type="primary"
+        icon={<GoogleOutlined />}
+        onClick={handleSignIn}
+        loading={signingIn}
+        block
+        size="large"
+        className="lc-signin-btn"
+      >
+        {signingIn ? "Redirecting…" : "Continue with Google"}
+      </Button>
+    </div>
   )
 }
 
@@ -182,8 +191,8 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
     setSubscribing(true)
     try {
       const rsp = await makeSubscriptionOrder(currentTier.tier_uuid)
-      const jumpToUrl = `${currentTier.pay_page}?vendor_id=${rsp.vendor_id}&env=${rsp.env}&order_uuid=${rsp.order_uuid}`
-      window.open(jumpToUrl)
+      const url = `${currentTier.pay_page}?vendor_id=${rsp.vendor_id}&env=${rsp.env}&order_uuid=${rsp.order_uuid}`
+      window.open(url)
     } catch {
       messageApi.error("Failed to create order, please try again")
     } finally {
@@ -193,128 +202,127 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   if (loadingTiers) {
     return (
-      <Card className="dashboard-card">
-        <div style={{ textAlign: "center", padding: "16px 0" }}>
-          <Spin />
-        </div>
-      </Card>
+      <div className="pc-card">
+        <div className="db-col-loading"><Spin size="large" /></div>
+      </div>
     )
   }
 
   if (tierList.length === 0) return null
 
   return (
-    <Card className="dashboard-card">
+    <div className="pc-card">
       {contextHolder}
 
-      {/* Title / Pro badge */}
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
+      {/* Gradient header */}
+      <div className="pc-header">
         {isPro ? (
-          <Tag icon={<CrownOutlined />} color="gold" style={{ fontSize: 14, padding: "4px 14px" }}>
-            Pro Member
-          </Tag>
+          <>
+            <Tag icon={<CrownOutlined />} color="gold" className="pc-pro-tag">Pro Member</Tag>
+            <div className="pc-header-title">You're all set!</div>
+            <div className="pc-header-sub">Thanks for being a Pro member. Enjoy unlimited access.</div>
+          </>
         ) : (
-          <Title level={4} style={{ margin: 0 }}>Upgrade to Pro</Title>
+          <>
+            <div className="pc-promo-badge">✦ 25% OFF · LIMITED TIME OFFER</div>
+            <div className="pc-header-title">Upgrade to Pro</div>
+            <div className="pc-header-sub">Unlock all features and download without limits</div>
+          </>
         )}
       </div>
 
-      {/* Feature list */}
-      <div style={{ marginBottom: 16 }}>
-        {FEATURES.map((f) => (
-          <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 14, flexShrink: 0 }} />
-            <Text style={{ fontSize: 13 }}>{f}</Text>
-          </div>
-        ))}
-      </div>
+      {/* Body */}
+      <div className="pc-body">
 
-      <Divider style={{ margin: "12px 0" }} />
-
-      {/* Promo badge */}
-      <div style={{ textAlign: "center", marginBottom: 12, color: "#faad14", fontWeight: "bold", fontSize: 13 }}>
-        25% OFF — LIMITED TIME OFFER!
-      </div>
-
-      {/* Tier selector */}
-      <div style={{ textAlign: "center", marginBottom: 12 }}>
-        <Radio.Group
-          value={tierId}
-          buttonStyle="solid"
-          onChange={(e) => setTierId(e.target.value)}
-        >
-          {tierList.map((tier, index) => (
-            <Radio.Button key={index} value={index}>
-              {tier.period_type}
-            </Radio.Button>
+        {/* Feature grid */}
+        <div className="pc-feature-grid">
+          {FEATURES.map((f) => (
+            <div key={f} className="pc-feature-item">
+              <CheckCircleOutlined className="pc-feature-icon" />
+              <Text style={{ fontSize: 13 }}>{f}</Text>
+            </div>
           ))}
-        </Radio.Group>
-      </div>
-
-      {/* Price */}
-      {currentTier && (
-        <div style={{ textAlign: "center", marginBottom: 8 }}>
-          <span style={{ color: "#ff4d4f", fontSize: 34, fontWeight: "bold" }}>
-            ${currentTier.equivalent_selling_price}
-          </span>
-          <span style={{ color: "#bfbfbf", fontSize: 16, textDecoration: "line-through", marginLeft: 8 }}>
-            ${currentTier.equivalent_list_price}
-          </span>
-          <span style={{ color: "#8c8c8c", fontSize: 13, marginLeft: 4 }}>
-            /{currentTier.equivalent_period}
-          </span>
         </div>
-      )}
 
-      {/* Money-back */}
-      <div style={{ textAlign: "center", marginBottom: 14, color: "#ff4d4f", fontSize: 12, fontWeight: "bold" }}>
-        7-DAY MONEY BACK GUARANTEE
-      </div>
+        <Divider style={{ margin: "20px 0" }} />
 
-      {/* Subscribe / Unsubscribe */}
-      {isPro ? (
-        <Button
-          block
-          size="large"
-          icon={<SketchOutlined />}
-          onClick={() => window.open(cancelUrl)}
-          loading={loadingMembership}
-        >
-          Unsubscribe
-        </Button>
-      ) : (
-        <Button
-          type="primary"
-          block
-          size="large"
-          icon={<CrownOutlined />}
-          onClick={handleSubscribe}
-          loading={subscribing}
-          style={{ background: "#ff4d4f", borderColor: "#ff4d4f" }}
-        >
-          Subscribe Now
-        </Button>
-      )}
-
-      {/* ToS checkbox */}
-      {!isPro && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-          <Checkbox checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-          <Text style={{ fontSize: 12 }}>
-            I agree to the{" "}
-            <a href={TERMS_URL} target="_blank" rel="noreferrer" style={{ color: "#ff4d4f" }}>
-              Terms of Service
-            </a>
-          </Text>
+        {/* Tier selector */}
+        <div className="pc-tier-row">
+          <Radio.Group
+            value={tierId}
+            buttonStyle="solid"
+            onChange={(e) => setTierId(e.target.value)}
+          >
+            {tierList.map((tier, index) => (
+              <Radio.Button key={index} value={index} className="pc-tier-btn">
+                {tier.period_type}
+              </Radio.Button>
+            ))}
+          </Radio.Group>
         </div>
-      )}
 
-      {/* Payment security */}
-      <div style={{ marginTop: 14, fontSize: 12, color: "#8c8c8c", textAlign: "center" }}>
-        <LockOutlined style={{ marginRight: 4 }} />
-        Secured by <strong style={{ color: "#595959" }}>PayPal</strong> and{" "}
-        <strong style={{ color: "#595959" }}>Paddle</strong>. No account needed.
+        {/* Price display */}
+        {currentTier && (
+          <div className="pc-price-box">
+            <span className="pc-price-main">${currentTier.equivalent_selling_price}</span>
+            <span className="pc-price-original">${currentTier.equivalent_list_price}</span>
+            <span className="pc-price-period">/ {currentTier.equivalent_period}</span>
+          </div>
+        )}
+
+        {/* Money-back */}
+        <div className="pc-money-back">
+          <SafetyCertificateOutlined />
+          7-Day Money Back Guarantee
+        </div>
+
+        {/* CTA button */}
+        {isPro ? (
+          <Button
+            block
+            size="large"
+            icon={<SketchOutlined />}
+            onClick={() => window.open(cancelUrl)}
+            loading={loadingMembership}
+            className="pc-unsub-btn"
+          >
+            Manage Subscription
+          </Button>
+        ) : (
+          <Button
+            type="primary"
+            block
+            size="large"
+            icon={<CrownOutlined />}
+            onClick={handleSubscribe}
+            loading={subscribing}
+            className="pc-sub-btn"
+          >
+            Subscribe Now
+          </Button>
+        )}
+
+        {/* ToS */}
+        {!isPro && (
+          <div className="pc-tos-row">
+            <Checkbox checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+            <Text style={{ fontSize: 12 }}>
+              I agree to the{" "}
+              <a href={TERMS_URL} target="_blank" rel="noreferrer" className="pc-tos-link">
+                Terms of Service
+              </a>
+            </Text>
+          </div>
+        )}
+
+        {/* Payment security */}
+        <div className="pc-security">
+          <LockOutlined style={{ marginRight: 5 }} />
+          Secured by <strong>PayPal</strong> and <strong>Paddle</strong> · No account needed
+        </div>
+
       </div>
-    </Card>
+    </div>
   )
 }
 
