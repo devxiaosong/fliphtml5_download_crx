@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import type { User, Session } from "@supabase/supabase-js"
 import { supabase } from "./supabaseClient"
+import { pairUserAndProductRelation } from "./misc"
 
 export interface AuthState {
   user: User | null
@@ -25,6 +26,7 @@ export function useSupabaseAuth() {
     // INITIAL_SESSION 在异步 storage 读完前就触发，会误报 null，跳过它
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "INITIAL_SESSION") return
+      if (event === "SIGNED_IN") pairUserAndProductRelation()
       const user = session?.user ?? null
       setAuthState({ user, session, loading: false })
     })
@@ -44,6 +46,7 @@ export function useSupabaseAuth() {
           refresh_token: pending.refresh_token
         })
         console.log("[useSupabaseAuth] setSession:", data.user?.email ?? "null", error?.message ?? "")
+        if (data.user) pairUserAndProductRelation()
         setAuthState({ user: data.user ?? null, session: data.session ?? null, loading: false })
         return
       }

@@ -49,6 +49,10 @@ export function logError(eventName:string, eventBody:string) {
     logEventInfo(eventName, eventBody,'error')
 }
 
+export function pairUserAndProductRelation() {
+    logEventInfo('login', 'done', 'info')
+}
+
 function logEventInfo(
     eventName:string,
     eventBody:string,

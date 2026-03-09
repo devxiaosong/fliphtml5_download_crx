@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient"
+import { supabase } from "./supabaseClient.js"
 
 /**
  * 处理与认证相关的 background 消息。
