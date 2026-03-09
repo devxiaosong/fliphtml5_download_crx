@@ -83,6 +83,48 @@ export async function getAppInfo(): Promise<AppInfo | null> {
     return appInfo
 }
 
+export async function getTierList(): Promise<any[] | null> {
+    if(tierList) {
+        return tierList
+    }
+
+    await checkApp()
+
+    return tierList
+}
+
+export async function getDynamicRule(): Promise<DynamicRules | null> {
+    if(dynamicRules) {
+        return dynamicRules
+    }
+
+    await checkApp()
+
+    return dynamicRules
+}
+
+export async function getMembership(): Promise<any | null> {
+    if(memebership) {
+        return memebership
+    }
+
+    const { data, error } = await supabase.functions.invoke('get-membership', {
+        body: JSON.stringify(getProductInfo())
+    })
+
+    memebership = data
+
+    return memebership
+}
+
+export async function makeSubscriptionOrder(tier_uuid: string): Promise<any> {
+    const { data, error } = await supabase.functions.invoke('make-subscription-order', {
+        body: { tier_uuid }
+    })
+
+    return data
+}
+
 async function checkApp() {
     const {data, error} = await supabase.functions.invoke('check-app', {
         body: getProductInfo()

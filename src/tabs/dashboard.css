@@ -16,9 +16,10 @@
 .dashboard-body {
   flex: 1;
   padding: 32px 24px;
-  max-width: 480px;
+  max-width: 520px;
   width: 100%;
   margin: 0 auto;
+  overflow-y: auto;
 }
 
 .dashboard-center {
