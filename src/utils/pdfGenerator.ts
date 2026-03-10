@@ -1,8 +1,15 @@
 export type PDFOrientation = 'portrait' | 'landscape' | 'square'
 
+export interface WatermarkOptions {
+  text: string
+  fontSize: number  // 基准 595 宽度下的字号，实际生成时按 canvas 宽度等比缩放
+  angle: number     // 0–360 度，逆时针
+}
+
 interface PDFOptions {
   orientation: PDFOrientation
   addWatermark: boolean
+  watermarkOptions?: WatermarkOptions
   title?: string
   homepage?: string
   customPageSize?: { width: number; height: number }
@@ -17,41 +24,41 @@ const PAGE_SIZES = {
   square: { width: 595, height: 595 }       // 正方形
 }
 
-// 添加水印到canvas
+// 添加水印到canvas（支持自定义文字、字号、角度）
 function addWatermarkToCanvas(
-  canvas: HTMLCanvasElement, 
-  ctx: CanvasRenderingContext2D
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  options: WatermarkOptions
 ): void {
-  const text = 'Source: FlipHTML5 | Non-Commercial Authorization | Redistribution and Resale Are Strictly Prohibited'
-  const fontSize = 96
-  const lineHeight = 144
-  const angle = -45
-  
+  const { text, fontSize, angle } = options
+  // 按 canvas 实际宽度等比缩放字号（基准 595px = A4 宽度单位）
+  const scaledFontSize = Math.max(12, Math.round(fontSize * canvas.width / 595))
+  const lineHeight = scaledFontSize * 1.8
+  const radians = -(angle * Math.PI / 180)
+
   ctx.save()
-  ctx.font = `${fontSize}px sans-serif`
+  ctx.font = `bold ${scaledFontSize}px sans-serif`
   ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  
+
   const textWidth = ctx.measureText(text).width
   const diagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
-  
+
   ctx.translate(canvas.width / 2, canvas.height / 2)
-  ctx.rotate(angle * Math.PI / 180)
-  
+  ctx.rotate(radians)
+
   const rowSpacing = lineHeight
-  const colSpacing = textWidth + 100
+  const colSpacing = textWidth + scaledFontSize * 2
   const numRows = Math.ceil(diagonal / rowSpacing) + 2
   const numCols = Math.ceil(diagonal / colSpacing) + 2
-  
+
   for (let row = -numRows; row <= numRows; row++) {
     for (let col = -numCols; col <= numCols; col++) {
-      const x = col * colSpacing
-      const y = row * rowSpacing
-      ctx.fillText(text, x, y)
+      ctx.fillText(text, col * colSpacing, row * rowSpacing)
     }
   }
-  
+
   ctx.restore()
 }
 
@@ -68,26 +75,27 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
 
 // 将图片转换为带水印的 canvas
 export async function imageToCanvas(
-  imageUrl: string, 
-  addWatermark: boolean
+  imageUrl: string,
+  addWatermark: boolean,
+  watermarkOptions?: WatermarkOptions
 ): Promise<HTMLCanvasElement> {
   const img = await loadImage(imageUrl)
-  
+
   const canvas = document.createElement('canvas')
   canvas.width = img.naturalWidth || img.width
   canvas.height = img.naturalHeight || img.height
-  
+
   const ctx = canvas.getContext('2d')
   if (!ctx) {
     throw new Error('Failed to get canvas context')
   }
-  
+
   ctx.drawImage(img, 0, 0)
-  
-  if (addWatermark) {
-    addWatermarkToCanvas(canvas, ctx)
+
+  if (addWatermark && watermarkOptions) {
+    addWatermarkToCanvas(canvas, ctx, watermarkOptions)
   }
-  
+
   return canvas
 }
 
@@ -277,7 +285,7 @@ export async function generatePDF(
     throw new Error('No images to generate PDF')
   }
 
-  const { orientation, addWatermark, title, homepage, customPageSize, onProgress, imageQuality = 0.92 } = options
+  const { orientation, addWatermark, watermarkOptions, title, homepage, customPageSize, onProgress, imageQuality = 0.92 } = options
   const pageSize = customPageSize ?? PAGE_SIZES[orientation]
   
   console.log(`Generating PDF with ${imageUrls.length} images...`)
