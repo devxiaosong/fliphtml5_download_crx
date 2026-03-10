@@ -20,11 +20,14 @@ import "./dashboard.css"
 
 const { Title, Text } = Typography
 
-const FEATURES = [
-  "Unlimited PDF downloads",
-  "No watermarks",
-  "High-quality image export",
-  "Priority support",
+const FEATURES: { title: string; desc: string }[] = [
+  { title: "PDF Orientation", desc: "Portrait · Landscape · Square · Auto Fit" },
+  { title: "Image Quality", desc: "Medium & Low compression to reduce file size" },
+  { title: "Split PDF", desc: "Export large books across multiple files" },
+  { title: "Page Range", desc: "Export specific ranges or hand-picked pages" },
+  { title: "Full Text Extraction", desc: "Extract all pages (free plan: first 5 only)" },
+  { title: "Header & Footer", desc: "Custom text with optional clickable links" },
+  { title: "Watermark Control", desc: "Customize content, size, angle — or disable" },
 ]
 
 const TERMS_URL = "https://extensionkit.cc/terms-of-service"
@@ -247,7 +250,7 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
           <>
             <div className="pc-promo-badge">✦ 25% OFF · LIMITED TIME OFFER</div>
             <div className="pc-header-title">Upgrade to Pro</div>
-            <div className="pc-header-sub">Unlock all features and download without limits</div>
+            <div className="pc-header-sub">Unlock PDF customization, full text extraction, and advanced export options</div>
           </>
         )}
       </div>
@@ -255,9 +258,12 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
       <div className="pc-body">
         <div className="pc-feature-grid">
           {FEATURES.map((f) => (
-            <div key={f} className="pc-feature-item">
+            <div key={f.title} className="pc-feature-item">
               <CheckCircleOutlined className="pc-feature-icon" />
-              <Text style={{ fontSize: 13 }}>{f}</Text>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#2d2d3a", lineHeight: 1.3 }}>{f.title}</div>
+                <div style={{ fontSize: 11, color: "#8c8fa8", marginTop: 2, lineHeight: 1.4 }}>{f.desc}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -320,6 +326,7 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
 // ─── Tab: Settings ────────────────────────────────────────────────────────────
 
 function SettingsPanel() {
+  const [hfEnabled, setHfEnabled] = useState(false)
   const [headerText, setHeaderText] = useState("")
   const [headerUrl, setHeaderUrl] = useState("")
   const [footerText, setFooterText] = useState("")
@@ -341,6 +348,7 @@ function SettingsPanel() {
       setWmAngle(s.angle)
     })
     getHeaderFooterSettings().then((s) => {
+      setHfEnabled(s.enabled)
       setHeaderText(s.headerText)
       setHeaderUrl(s.headerUrl)
       setFooterText(s.footerText)
@@ -358,7 +366,7 @@ function SettingsPanel() {
     try {
       await Promise.all([
         saveWatermarkSettings({ enabled: wmEnabled, text: wmText, fontSize: wmSize, angle: wmAngle }),
-        saveHeaderFooterSettings({ headerText, headerUrl, footerText, footerUrl }),
+        saveHeaderFooterSettings({ enabled: hfEnabled, headerText, headerUrl, footerText, footerUrl }),
       ])
       messageApi.success("Settings saved")
     } catch {
@@ -380,9 +388,19 @@ function SettingsPanel() {
               <FileTextOutlined />
               Header &amp; Footer
             </span>
-            {!isPro && (
-              <Tag icon={<CrownOutlined />} color="gold" style={{ fontSize: 11 }}>Pro</Tag>
-            )}
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!isPro && (
+                <Tag icon={<CrownOutlined />} color="gold" style={{ fontSize: 11 }}>Pro</Tag>
+              )}
+              <Switch
+                checked={hfEnabled}
+                onChange={setHfEnabled}
+                checkedChildren="ON"
+                unCheckedChildren="OFF"
+                disabled={!isPro}
+                style={hfEnabled && isPro ? { background: "#667eea" } : {}}
+              />
+            </span>
           </div>
           <Form layout="vertical" size="middle">
 
@@ -393,13 +411,13 @@ function SettingsPanel() {
                 value={headerText}
                 onChange={(e) => setHeaderText(e.target.value)}
                 allowClear
-                disabled={!isPro}
+                disabled={!isPro || !hfEnabled}
               />
             </Form.Item>
             <Form.Item
               label={
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <LinkOutlined style={{ color: isPro ? "#667eea" : "#d9d9d9" }} />
+                  <LinkOutlined style={{ color: isPro && hfEnabled ? "#667eea" : "#d9d9d9" }} />
                   Header Link
                   <span style={{ color: "#aaa", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>
                     (optional · text becomes clickable)
@@ -414,7 +432,7 @@ function SettingsPanel() {
                 value={headerUrl}
                 onChange={(e) => setHeaderUrl(e.target.value)}
                 allowClear
-                disabled={!isPro || !headerText}
+                disabled={!isPro || !hfEnabled || !headerText}
               />
             </Form.Item>
 
@@ -425,13 +443,13 @@ function SettingsPanel() {
                 value={footerText}
                 onChange={(e) => setFooterText(e.target.value)}
                 allowClear
-                disabled={!isPro}
+                disabled={!isPro || !hfEnabled}
               />
             </Form.Item>
             <Form.Item
               label={
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <LinkOutlined style={{ color: isPro ? "#667eea" : "#d9d9d9" }} />
+                  <LinkOutlined style={{ color: isPro && hfEnabled ? "#667eea" : "#d9d9d9" }} />
                   Footer Link
                   <span style={{ color: "#aaa", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>
                     (optional · text becomes clickable)
@@ -446,10 +464,16 @@ function SettingsPanel() {
                 value={footerUrl}
                 onChange={(e) => setFooterUrl(e.target.value)}
                 allowClear
-                disabled={!isPro || !footerText}
+                disabled={!isPro || !hfEnabled || !footerText}
               />
             </Form.Item>
 
+            {!isPro && (
+              <div style={{ marginTop: 14, padding: "8px 12px", background: "#fffbe6", borderRadius: 8, border: "1px solid #ffe58f", fontSize: 12, color: "#ad6800", lineHeight: 1.6 }}>
+                🔒 Free plan: no header or footer is added to your PDFs.<br />
+                Upgrade to Pro to add custom text and links.
+              </div>
+            )}
           </Form>
         </div>
 
@@ -502,6 +526,13 @@ function SettingsPanel() {
                 {wmText || "Watermark"}
               </span>
             </div>
+
+            {!isPro && (
+              <div style={{ marginTop: 14, padding: "8px 12px", background: "#fffbe6", borderRadius: 8, border: "1px solid #ffe58f", fontSize: 12, color: "#ad6800", lineHeight: 1.6 }}>
+                🔒 Free plan: a default watermark is applied to all your PDFs.<br />
+                Upgrade to Pro to customize the watermark or remove it entirely.
+              </div>
+            )}
           </Form>
         </div>
 
@@ -525,17 +556,18 @@ function SettingsPanel() {
 // ─── Tab: History ─────────────────────────────────────────────────────────────
 
 const HISTORY_COLUMNS = [
-  { title: "Book Title", dataIndex: "title", key: "title", ellipsis: true },
-  { title: "Date", dataIndex: "date", key: "date", width: 140 },
-  { title: "Pages", dataIndex: "pages", key: "pages", width: 70, align: "center" as const },
   {
-    title: "Type",
-    dataIndex: "type",
-    key: "type",
-    width: 70,
-    align: "center" as const,
-    render: (v: string) => <Tag color={v === "PDF" ? "blue" : "purple"}>{v}</Tag>,
+    title: "",
+    dataIndex: "coverUrl",
+    key: "cover",
+    width: 60,
+    render: (url: string) => url
+      ? <img src={url} alt="cover" style={{ width: 44, height: 32, objectFit: "cover", borderRadius: 4, display: "block" }} />
+      : <div style={{ width: 44, height: 32, background: "#f0f0f0", borderRadius: 4 }} />,
   },
+  { title: "Book Title", dataIndex: "title", key: "title", ellipsis: true },
+  { title: "Date", dataIndex: "date", key: "date", width: 150 },
+  { title: "Pages", dataIndex: "pages", key: "pages", width: 70, align: "center" as const },
 ]
 
 function HistoryPanel() {
@@ -582,6 +614,10 @@ function HistoryPanel() {
         columns={HISTORY_COLUMNS}
         rowKey="id"
         pagination={false}
+        onRow={(record) => ({
+          onClick: () => chrome.tabs.create({ url: record.url }),
+          style: { cursor: "pointer" },
+        })}
         locale={{
           emptyText: (
             <div className="tab-empty">

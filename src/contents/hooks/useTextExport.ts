@@ -67,9 +67,10 @@ export function downloadTxt(content: string, fileName: string) {
 
 interface UseTextExportParams {
   metaInfoRef: React.RefObject<MetaInfo | null>
+  coverUrlRef?: React.RefObject<string | undefined>
 }
 
-export function useTextExport({ metaInfoRef }: UseTextExportParams) {
+export function useTextExport({ metaInfoRef, coverUrlRef }: UseTextExportParams) {
   const handleExtractText = useCallback(async () => {
     const currentUrl = window.location.href
 
@@ -112,6 +113,7 @@ export function useTextExport({ metaInfoRef }: UseTextExportParams) {
         url: currentUrl,
         pages: textForPages.length,
         type: "Text",
+        coverUrl: coverUrlRef?.current,
       })
     } catch (error) {
       console.error("Failed to extract text:", error)

@@ -199,7 +199,7 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | URL: ${currentUrl}`
           )
-          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF" })
+          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF", coverUrl: imageState.normalImages[0] })
         } else {
           setPdfProgress({
             currentFile: 1,
@@ -235,7 +235,7 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (1 file, ${filteredImages.length} images) | URL: ${currentUrl}`
           )
-          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF" })
+          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF", coverUrl: imageState.normalImages[0] })
         }
       } catch (error) {
         setPdfProgress(null)

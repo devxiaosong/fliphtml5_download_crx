@@ -2,6 +2,7 @@ export interface HistoryRecord {
   id: string
   title: string
   url: string
+  coverUrl?: string
   date: string
   pages: number
   type: "PDF" | "Text"

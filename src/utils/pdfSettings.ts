@@ -1,6 +1,7 @@
 // ─── Header / Footer ─────────────────────────────────────────────────────────
 
 export interface HeaderFooterSettings {
+  enabled: boolean
   headerText: string
   headerUrl: string   // 可选：设置后文字渲染为可点击链接
   footerText: string
@@ -8,6 +9,7 @@ export interface HeaderFooterSettings {
 }
 
 export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
+  enabled: false,
   headerText: "",
   headerUrl: "",
   footerText: "",

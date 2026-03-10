@@ -74,8 +74,9 @@ export function useScanDialogState(): UseScanDialogStateReturn {
   const [metaInfo, setMetaInfo] = useState<MetaInfo | null>(null)
   const fliphtml5RulesRef = useRef<FlipHTML5Rules | null>(null)
   const metaInfoRef = useRef<MetaInfo | null>(null)
+  const coverUrlRef = useRef<string | undefined>(undefined)
 
-  const { handleExtractText } = useTextExport({ metaInfoRef })
+  const { handleExtractText } = useTextExport({ metaInfoRef, coverUrlRef })
 
   const openScanDialog = useCallback(async () => {
     const currentUrl = window.location.href
@@ -127,6 +128,7 @@ export function useScanDialogState(): UseScanDialogStateReturn {
           totalPages: meta.pageCount || thumbImages.length,
           isLoaded: true
         })
+        coverUrlRef.current = normalImages[0]
 
         logInfo(
           "load_images",
