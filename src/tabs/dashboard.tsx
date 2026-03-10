@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react"
-import { ConfigProvider, Button, Avatar, Typography, Spin, Radio, Checkbox, Tag, Divider, message } from "antd"
+import {
+  ConfigProvider, Button, Avatar, Typography, Spin, Radio, Checkbox,
+  Tag, Divider, message, Tabs, Form, Input, Slider, Table
+} from "antd"
 import {
   GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined,
-  CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined, SafetyCertificateOutlined
+  CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined,
+  SafetyCertificateOutlined, SettingOutlined, HistoryOutlined, FileTextOutlined
 } from "@ant-design/icons"
 import { useSupabaseAuth } from "../core/useSupabaseAuth"
 import { getTierList, getMembership, makeSubscriptionOrder } from "../core/misc"
@@ -23,6 +27,24 @@ const TERMS_URL = "https://extensionkit.cc/terms-of-service"
 
 function Dashboard() {
   const { user, loading, signIn, signOut } = useSupabaseAuth()
+
+  const tabItems = [
+    {
+      key: "pricing",
+      label: <span className="tab-label"><CrownOutlined />Pricing</span>,
+      children: <PricingPanel isLoggedIn={!!user && !loading} />,
+    },
+    {
+      key: "settings",
+      label: <span className="tab-label"><SettingOutlined />Settings</span>,
+      children: <SettingsPanel />,
+    },
+    {
+      key: "history",
+      label: <span className="tab-label"><HistoryOutlined />History</span>,
+      children: <HistoryPanel />,
+    },
+  ]
 
   return (
     <ConfigProvider>
@@ -45,7 +67,7 @@ function Dashboard() {
         <div className="db-main">
           <div className="db-columns">
 
-            {/* Left: Account */}
+            {/* Left: Account — always visible */}
             <div className="db-col-left">
               {loading
                 ? <div className="db-col-loading"><Spin size="large" /></div>
@@ -55,9 +77,15 @@ function Dashboard() {
               }
             </div>
 
-            {/* Right: Pricing */}
+            {/* Right: Tabbed panels */}
             <div className="db-col-right">
-              <PricingPanel isLoggedIn={!!user && !loading} />
+              <div className="right-panel-card">
+                <Tabs
+                  defaultActiveKey="pricing"
+                  items={tabItems}
+                  className="right-tabs"
+                />
+              </div>
             </div>
 
           </div>
@@ -82,7 +110,6 @@ function AccountCard({
 
   return (
     <div className="ac-card">
-      {/* Avatar with gradient ring */}
       <div className="ac-avatar-ring">
         <Avatar
           size={72}
@@ -90,19 +117,13 @@ function AccountCard({
           icon={!avatarUrl ? <UserOutlined /> : undefined}
         />
       </div>
-
       <Title level={4} className="ac-name">{fullName}</Title>
       <Text type="secondary" className="ac-email">{email}</Text>
-
       <Divider className="ac-divider" />
-
       <Button
         icon={<LogoutOutlined />}
         onClick={onSignOut}
-        block
-        danger
-        ghost
-        size="large"
+        block danger ghost size="large"
         className="ac-signout"
       >
         Sign Out
@@ -126,21 +147,17 @@ function LoginCard({ onSignIn }: { onSignIn: () => Promise<void> }) {
       <div className="lc-icon-wrap">
         <FileImageOutlined style={{ fontSize: 36, color: "#667eea" }} />
       </div>
-
       <Title level={4} className="ac-name" style={{ marginTop: 16 }}>Welcome</Title>
       <Text type="secondary" className="ac-email">
         Sign in to manage your subscription and settings
       </Text>
-
       <Divider className="ac-divider" />
-
       <Button
         type="primary"
         icon={<GoogleOutlined />}
         onClick={handleSignIn}
         loading={signingIn}
-        block
-        size="large"
+        block size="large"
         className="lc-signin-btn"
       >
         {signingIn ? "Redirecting…" : "Continue with Google"}
@@ -149,7 +166,7 @@ function LoginCard({ onSignIn }: { onSignIn: () => Promise<void> }) {
   )
 }
 
-// ─── Pricing Panel ────────────────────────────────────────────────────────────
+// ─── Tab: Pricing ─────────────────────────────────────────────────────────────
 
 function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [tierId, setTierId] = useState(0)
@@ -183,10 +200,7 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
   const currentTier = tierList[tierId]
 
   const handleSubscribe = async () => {
-    if (!checked) {
-      messageApi.warning("Please agree to the Terms of Service first")
-      return
-    }
+    if (!checked) { messageApi.warning("Please agree to the Terms of Service first"); return }
     if (!currentTier) return
     setSubscribing(true)
     try {
@@ -201,20 +215,21 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
   }
 
   if (loadingTiers) {
-    return (
-      <div className="pc-card">
-        <div className="db-col-loading"><Spin size="large" /></div>
-      </div>
-    )
+    return <div className="tab-loading"><Spin size="large" /></div>
   }
 
-  if (tierList.length === 0) return null
+  if (tierList.length === 0) return (
+    <div className="tab-empty">
+      <CrownOutlined style={{ fontSize: 40, color: "#d9d9d9" }} />
+      <div>Pricing info unavailable</div>
+    </div>
+  )
 
   return (
-    <div className="pc-card">
+    <div className="pricing-tab">
       {contextHolder}
 
-      {/* Gradient header */}
+      {/* Gradient banner */}
       <div className="pc-header">
         {isPro ? (
           <>
@@ -231,10 +246,7 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
         )}
       </div>
 
-      {/* Body */}
       <div className="pc-body">
-
-        {/* Feature grid */}
         <div className="pc-feature-grid">
           {FEATURES.map((f) => (
             <div key={f} className="pc-feature-item">
@@ -246,13 +258,8 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
 
         <Divider style={{ margin: "20px 0" }} />
 
-        {/* Tier selector */}
         <div className="pc-tier-row">
-          <Radio.Group
-            value={tierId}
-            buttonStyle="solid"
-            onChange={(e) => setTierId(e.target.value)}
-          >
+          <Radio.Group value={tierId} buttonStyle="solid" onChange={(e) => setTierId(e.target.value)}>
             {tierList.map((tier, index) => (
               <Radio.Button key={index} value={index} className="pc-tier-btn">
                 {tier.period_type}
@@ -261,7 +268,6 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
           </Radio.Group>
         </div>
 
-        {/* Price display */}
         {currentTier && (
           <div className="pc-price-box">
             <span className="pc-price-main">${currentTier.equivalent_selling_price}</span>
@@ -270,58 +276,178 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
           </div>
         )}
 
-        {/* Money-back */}
         <div className="pc-money-back">
-          <SafetyCertificateOutlined />
-          7-Day Money Back Guarantee
+          <SafetyCertificateOutlined />7-Day Money Back Guarantee
         </div>
 
-        {/* CTA button */}
         {isPro ? (
-          <Button
-            block
-            size="large"
-            icon={<SketchOutlined />}
-            onClick={() => window.open(cancelUrl)}
-            loading={loadingMembership}
-            className="pc-unsub-btn"
-          >
+          <Button block size="large" icon={<SketchOutlined />}
+            onClick={() => window.open(cancelUrl)} loading={loadingMembership} className="pc-unsub-btn">
             Manage Subscription
           </Button>
         ) : (
-          <Button
-            type="primary"
-            block
-            size="large"
-            icon={<CrownOutlined />}
-            onClick={handleSubscribe}
-            loading={subscribing}
-            className="pc-sub-btn"
-          >
+          <Button type="primary" block size="large" icon={<CrownOutlined />}
+            onClick={handleSubscribe} loading={subscribing} className="pc-sub-btn">
             Subscribe Now
           </Button>
         )}
 
-        {/* ToS */}
         {!isPro && (
           <div className="pc-tos-row">
             <Checkbox checked={checked} onChange={(e) => setChecked(e.target.checked)} />
             <Text style={{ fontSize: 12 }}>
               I agree to the{" "}
-              <a href={TERMS_URL} target="_blank" rel="noreferrer" className="pc-tos-link">
-                Terms of Service
-              </a>
+              <a href={TERMS_URL} target="_blank" rel="noreferrer" className="pc-tos-link">Terms of Service</a>
             </Text>
           </div>
         )}
 
-        {/* Payment security */}
         <div className="pc-security">
           <LockOutlined style={{ marginRight: 5 }} />
           Secured by <strong>PayPal</strong> and <strong>Paddle</strong> · No account needed
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tab: Settings ────────────────────────────────────────────────────────────
+
+function SettingsPanel() {
+  const [headerText, setHeaderText] = useState("")
+  const [footerText, setFooterText] = useState("")
+  const [wmText, setWmText] = useState("CONFIDENTIAL")
+  const [wmSize, setWmSize] = useState(36)
+  const [wmAngle, setWmAngle] = useState(45)
+
+  return (
+    <div className="settings-tab">
+
+      <div className="settings-grid">
+
+        {/* Card: Header & Footer */}
+        <div className="settings-card">
+          <div className="settings-card-title">
+            <FileTextOutlined />
+            Header &amp; Footer
+          </div>
+          <Form layout="vertical" size="middle">
+            <Form.Item label="Header Text" style={{ marginBottom: 16 }}>
+              <Input
+                placeholder="e.g. Confidential · Do Not Distribute"
+                value={headerText}
+                onChange={(e) => setHeaderText(e.target.value)}
+                allowClear
+              />
+            </Form.Item>
+            <Form.Item label="Footer Text" style={{ marginBottom: 0 }}>
+              <Input
+                placeholder="e.g. Page {page} of {total}"
+                value={footerText}
+                onChange={(e) => setFooterText(e.target.value)}
+                allowClear
+              />
+            </Form.Item>
+          </Form>
+        </div>
+
+        {/* Card: Watermark */}
+        <div className="settings-card">
+          <div className="settings-card-title">
+            <SettingOutlined />
+            Watermark
+          </div>
+          <Form layout="vertical" size="middle">
+            <Form.Item label="Text" style={{ marginBottom: 12 }}>
+              <Input
+                value={wmText}
+                onChange={(e) => setWmText(e.target.value)}
+                allowClear
+              />
+            </Form.Item>
+            <Form.Item label={`Font Size: ${wmSize}px`} style={{ marginBottom: 12 }}>
+              <Slider min={12} max={80} value={wmSize} onChange={(v) => setWmSize(v)} />
+            </Form.Item>
+            <Form.Item label={`Angle: ${wmAngle}°`} style={{ marginBottom: 12 }}>
+              <Slider min={0} max={360} value={wmAngle} onChange={(v) => setWmAngle(v)} />
+            </Form.Item>
+
+            {/* Live preview */}
+            <div className="wm-preview">
+              <span
+                className="wm-preview-text"
+                style={{
+                  fontSize: Math.max(10, wmSize * 0.38),
+                  transform: `rotate(-${wmAngle}deg)`,
+                }}
+              >
+                {wmText || "Watermark"}
+              </span>
+            </div>
+          </Form>
+        </div>
 
       </div>
+
+      <Button type="primary" block size="large" className="settings-save-btn">
+        Save Settings
+      </Button>
+    </div>
+  )
+}
+
+// ─── Tab: History ─────────────────────────────────────────────────────────────
+
+const HISTORY_COLUMNS = [
+  {
+    title: "Book Title",
+    dataIndex: "title",
+    key: "title",
+    ellipsis: true,
+  },
+  {
+    title: "Date",
+    dataIndex: "date",
+    key: "date",
+    width: 130,
+  },
+  {
+    title: "Pages",
+    dataIndex: "pages",
+    key: "pages",
+    width: 70,
+    align: "center" as const,
+  },
+  {
+    title: "Type",
+    dataIndex: "type",
+    key: "type",
+    width: 70,
+    align: "center" as const,
+    render: (v: string) => (
+      <Tag color={v === "PDF" ? "blue" : "purple"}>{v}</Tag>
+    ),
+  },
+]
+
+function HistoryPanel() {
+  return (
+    <div className="history-tab">
+      <Table
+        dataSource={[]}
+        columns={HISTORY_COLUMNS}
+        rowKey="id"
+        pagination={false}
+        locale={{
+          emptyText: (
+            <div className="tab-empty">
+              <HistoryOutlined style={{ fontSize: 40, color: "#d9d9d9" }} />
+              <div className="tab-empty-title">No download history yet</div>
+              <div className="tab-empty-sub">Your PDF and text downloads will appear here</div>
+            </div>
+          ),
+        }}
+      />
     </div>
   )
 }

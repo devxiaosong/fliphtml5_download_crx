@@ -1,7 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { useState, useEffect, useRef } from "react"
 import { ConfigProvider, Modal, Button, Flex, Space, Typography, Card, message, Segmented, InputNumber, Radio, Tooltip, Avatar } from "antd"
-import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons"
+import { DownloadOutlined, FileTextOutlined, LayoutOutlined, BorderOutlined, CompressOutlined, QuestionCircleOutlined, UserOutlined, FileImageOutlined } from "@ant-design/icons"
 import type { PDFOrientation } from "../utils/pdfGenerator"
 import { useUserInfo } from "../core/useSupabaseAuth"
 
@@ -78,7 +78,7 @@ function ScanDialog() {
   const displayImages = imageState.thumbImages
 
   return (
-    <ConfigProvider>
+    <ConfigProvider theme={{ token: { colorPrimary: '#667eea', borderRadius: 10, borderRadiusLG: 12 } }}>
       {/* 全局 Loading */}
       {loading && (
         <div style={{
@@ -97,16 +97,16 @@ function ScanDialog() {
           <div style={{
             background: 'white',
             padding: '40px',
-            borderRadius: '8px',
+            borderRadius: '16px',
             textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.2)'
           }}>
             <div style={{ marginBottom: '20px' }}>
               <div className="loading-spinner" style={{
                 width: '48px',
                 height: '48px',
-                border: '4px solid #f3f3f3',
-                borderTop: '4px solid #1890ff',
+                border: '4px solid #eef0f6',
+                borderTop: '4px solid #667eea',
                 borderRadius: '50%',
                 margin: '0 auto'
               }} />
@@ -117,14 +117,19 @@ function ScanDialog() {
 
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '32px' }}>
-            <span>FlipHTML5 Scanner</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileImageOutlined style={{ fontSize: 18, color: 'rgba(255,255,255,0.9)' }} />
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, letterSpacing: '0.2px' }}>FlipHTML5 Scanner</span>
+            </div>
             <Tooltip title={user ? `${user.name || user.email} · Dashboard` : "Sign in · Dashboard"}>
               <div onClick={openDashboard} style={{ cursor: 'pointer', lineHeight: 0 }}>
                 {user?.avatar_url ? (
-                  <Avatar size={28} src={user.avatar_url} />
+                  <Avatar size={28} src={user.avatar_url}
+                    style={{ border: '2px solid rgba(255,255,255,0.6)' }} />
                 ) : (
-                  <Avatar size={28} icon={<UserOutlined />} style={{ background: '#d9d9d9' }} />
+                  <Avatar size={28} icon={<UserOutlined />}
+                    style={{ background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: '#fff' }} />
                 )}
               </div>
             </Tooltip>
@@ -136,11 +141,29 @@ function ScanDialog() {
         width={800}
         centered
         maskClosable={false}
+        className="scan-modal"
         style={{ maxHeight: '90vh' }}
-        styles={{ body: { maxHeight: 'calc(90vh - 110px)', overflow: 'hidden' } }}
+        styles={{
+          header: {
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '14px 20px',
+            margin: 0,
+            borderRadius: 0,
+          },
+          content: {
+            borderRadius: '16px',
+            overflow: 'hidden',
+            padding: 0,
+          },
+          body: {
+            padding: '16px 20px',
+            maxHeight: 'calc(90vh - 110px)',
+            overflow: 'hidden',
+          },
+        }}
       >
         {/* Export Settings */}
-        <Card size="small" style={{ marginBottom: '16px' }}>
+        <Card size="small" style={{ marginBottom: '16px', borderRadius: '12px', border: '1px solid #eef0f6', background: '#f7f8fc' }}>
           <Flex vertical gap="middle">
             {/* 第一行：PDF方向选择 */}
             <Flex align="center" gap={16}>
@@ -275,7 +298,7 @@ function ScanDialog() {
 
         {/* PDF Generation Progress */}
         {pdfProgress && (
-          <div style={{ textAlign: 'center', marginBottom: '16px', color: '#1890ff' }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px', color: '#667eea' }}>
             <Text type="secondary">
               {pdfProgress.totalFiles > 1 
                 ? `Generating file ${pdfProgress.currentFile}/${pdfProgress.totalFiles} (${pdfProgress.currentPage}/${pdfProgress.totalPages} pages) - ${Math.round((pdfProgress.currentFile - 1 + (pdfProgress.currentPage / pdfProgress.totalPages)) / pdfProgress.totalFiles * 100)}%`
@@ -303,7 +326,7 @@ function ScanDialog() {
             Support by{' '}
             <a
               href="mailto:extensionkit@gmail.com"
-              style={{ color: '#1890ff', textDecoration: 'none' }}
+              style={{ color: '#667eea', textDecoration: 'none' }}
               onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
               onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
             >
