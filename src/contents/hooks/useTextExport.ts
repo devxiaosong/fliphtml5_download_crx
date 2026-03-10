@@ -4,7 +4,7 @@ import { logInfo } from "../../core/misc"
 import { addDownloadHistory } from "../../utils/downloadHistory"
 import type { MetaInfo } from "./useScanDialogState"
 
-function getTextForPages(): Promise<any[]> {
+export function getTextForPages(): Promise<any[]> {
   return new Promise((resolve) => {
     const eventName = "textForPagesLoaded_" + Date.now()
     window.addEventListener(
@@ -29,7 +29,7 @@ function getTextForPages(): Promise<any[]> {
   })
 }
 
-function generateTxtFileName(title: string): string {
+export function generateTxtFileName(title: string): string {
   try {
     let safeTitle = title || "no title"
     safeTitle = safeTitle.replace(/[<>:"/\\|?*]/g, "_")
@@ -43,7 +43,7 @@ function generateTxtFileName(title: string): string {
   }
 }
 
-function extractPageText(page: any): string {
+export function extractPageText(page: any): string {
   if (!page) return ""
   if (typeof page === "string") return page
   if (Array.isArray(page)) return page.map(extractPageText).join(" ")
@@ -55,7 +55,7 @@ function extractPageText(page: any): string {
   return String(page)
 }
 
-function downloadTxt(content: string, fileName: string) {
+export function downloadTxt(content: string, fileName: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")

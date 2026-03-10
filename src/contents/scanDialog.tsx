@@ -9,6 +9,7 @@ import { useUserTier } from "./hooks/useUserTier"
 type PDFOrientationUI = PDFOrientation | "auto"
 import { usePdfExport } from "./hooks/usePdfExport"
 import { useScanDialogState } from "./hooks/useScanDialogState"
+import { getTextForPages, extractPageText, generateTxtFileName, downloadTxt } from "./hooks/useTextExport"
 import { ImagePreviewCard } from "./components/ImagePreviewCard"
 
 const { Text } = Typography
@@ -89,35 +90,61 @@ function ScanDialog() {
 
   const displayImages = imageState.thumbImages
 
-  // 非 Pro 用户点击 Extract Text：下载示例文件
+  // 非 Pro 用户点击 Extract Text：只导出前 5 页 + 升级提示头
+  const FREE_PAGE_LIMIT = 5
   const handleExtractTextFree = async () => {
+    const currentUrl = window.location.href
+    const urlObj = new URL(currentUrl)
+    if (!urlObj.searchParams.has("search")) {
+      urlObj.searchParams.set("search", "1")
+      window.location.href = urlObj.toString()
+      return
+    }
+
     try {
-      const url = chrome.runtime.getURL("extract-text-example.txt")
-      const resp = await fetch(url)
-      const text = await resp.text()
-      const blob = new Blob([text], { type: "text/plain;charset=utf-8" })
-      const a = document.createElement("a")
-      a.href = URL.createObjectURL(blob)
-      a.download = "extract-text-example.txt"
-      a.click()
-      URL.revokeObjectURL(a.href)
+      const textForPages = await getTextForPages()
+      if (!Array.isArray(textForPages) || textForPages.length === 0) {
+        message.warning("No text content found on this page.")
+        return
+      }
+
+      const totalPages = textForPages.length
+      const limitedPages = textForPages.slice(0, FREE_PAGE_LIMIT)
+
+      const lines: string[] = [
+        "================================================",
+        " FREE VERSION — First 5 pages only",
+        ` Upgrade to Pro to get all ${totalPages} pages.`,
+        "================================================",
+        "",
+      ]
+      limitedPages.forEach((page: any, index: number) => {
+        const pageText = extractPageText(page).trim()
+        lines.push(`--- Page ${index + 1} ---`)
+        lines.push(pageText || "(empty)")
+        lines.push("")
+      })
+
+      const title = metaInfo?.title || "no title"
+      downloadTxt(lines.join("\n"), generateTxtFileName(title))
+
       message.info({
         content: (
           <span>
-            Sample downloaded.{" "}
+            First {Math.min(FREE_PAGE_LIMIT, totalPages)} of {totalPages} pages exported.{" "}
             <span
               style={{ color: "#667eea", cursor: "pointer", fontWeight: 600 }}
               onClick={() => { openDashboard(); message.destroy() }}
             >
               Upgrade to Pro
             </span>
-            {" "}to extract real text.
+            {" "}to unlock all pages.
           </span>
         ),
-        duration: 5,
+        duration: 6,
       })
     } catch {
-      message.error("Failed to download sample.")
+      message.error("Failed to extract text.")
     }
   }
 
