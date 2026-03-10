@@ -11,14 +11,14 @@ const getPageInfo = async (): Promise<string> => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const url = tab.url || 'unknown'
-    
+
     // 尝试从 URL 中提取页码 (格式: #p=1 或 &p=1)
     let pageNumber = 'N/A'
     const pageMatch = url.match(/[#&]p=(\d+)/)
     if (pageMatch) {
       pageNumber = pageMatch[1]
     }
-    
+
     return `URL: ${url} | Page: ${pageNumber}`
   } catch (error) {
     console.error('Failed to get page info:', error)
@@ -39,19 +39,19 @@ export default function ScanControl() {
   const checkCurrentPage = async () => {
     try {
       const pageInfo = await getPageInfo()
-      
+
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       const url = tab.url || ''
-      
+
       // 去掉协议部分 (http:// 或 https://)
       const urlWithoutProtocol = url.split('//')[1] || ''
-      
+
       // 情况 2: online.fliphtml5.com - 检查路径段（优先判断）
       if (urlWithoutProtocol.startsWith('online.fliphtml5.com')) {
         try {
           const urlObj = new URL(url)
           const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
-          
+
           // 至少需要 2 个路径段才启用按钮
           if (pathSegments.length >= 2) {
             setIsButtonEnabled(true)
@@ -61,13 +61,13 @@ export default function ScanControl() {
           console.error('Failed to parse URL:', error)
         }
       }
-      
+
       // 情况 1: fliphtml5.com 短链接 - 需要至少 3 个路径段
       if (urlWithoutProtocol.startsWith('fliphtml5.com')) {
         try {
           const urlObj = new URL(url)
           const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
-          
+
           // 至少需要 3 个路径段
           if (pathSegments.length >= 3) {
             setIsButtonEnabled(true)
@@ -77,7 +77,7 @@ export default function ScanControl() {
           console.error('Failed to parse URL:', error)
         }
       }
-      
+
       // 其他情况，按钮禁用
       setIsButtonEnabled(false)
     } catch (error) {
@@ -94,7 +94,7 @@ export default function ScanControl() {
         setScanSpeed(result.scanSpeed)
       }
     })
-    
+
     // 检查当前页面是否有效
     checkCurrentPage()
   }, [])
@@ -110,20 +110,20 @@ export default function ScanControl() {
   const handleStartScan = async () => {
     try {
       const pageInfo = await getPageInfo()
-      
+
       // 获取当前活动的标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      
+
       if (!tab.id) {
         console.error('No active tab found')
         return
       }
 
       const url = tab.url || ''
-      
+
       // 去掉协议部分 (http:// 或 https://)
       const urlWithoutProtocol = url.split('//')[1] || ''
-      
+
       // 情况 2: 处理 online.fliphtml5.com 网站（优先判断）
       if (urlWithoutProtocol.startsWith('online.fliphtml5.com')) {
         try {
@@ -142,13 +142,13 @@ export default function ScanControl() {
           console.error('Failed to parse URL:', error)
         }
       }
-      
+
       // 情况 1: 处理 fliphtml5.com 短链接
       if (urlWithoutProtocol.startsWith('fliphtml5.com')) {
         try {
           const urlObj = new URL(url)
           const pathSegments = urlObj.pathname.split('/').filter(seg => seg.length > 0)
-          
+
           // 检查是否有至少 3 个路径段（格式：/seg1/seg2/seg3/）
           if (pathSegments.length >= 3) {
             // 构建 online.fliphtml5.com URL，只取前两个分段，并带上 search 参数
@@ -165,7 +165,7 @@ export default function ScanControl() {
           return
         }
       }
-      
+
       // 如果都不是，提示用户
       alert('Please use this extension on FlipHTML5 website (fliphtml5.com or online.fliphtml5.com)')
 
@@ -222,9 +222,9 @@ export default function ScanControl() {
           {/* 仅在无效页面时显示示例链接提示 */}
           {!isButtonEnabled && (
             <>
-              <div style={{ 
-                background: '#fff7e6', 
-                padding: '12px', 
+              <div style={{
+                background: '#fff7e6',
+                padding: '12px',
                 borderRadius: '4px',
                 border: '1px solid #ffd591',
                 textAlign: 'center'
@@ -232,8 +232,8 @@ export default function ScanControl() {
                 <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
                   Current page is not a valid FlipHTML5 page
                 </Text>
-                <Link 
-                  href="https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025" 
+                <Link
+                  href="https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025/?search=1#p=1"
                   target="_blank"
                   style={{ fontSize: '13px' }}
                   onClick={async () => {
@@ -286,8 +286,8 @@ export default function ScanControl() {
           <div style={{ textAlign: 'center', paddingTop: '12px', borderTop: '1px solid #f0f0f0' }}>
             <Text type="secondary" style={{ fontSize: '11px' }}>
               Support by{' '}
-              <a 
-                href="mailto:extensionkit@gmail.com" 
+              <a
+                href="mailto:extensionkit@gmail.com"
                 style={{ color: '#1890ff', textDecoration: 'none' }}
                 onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}

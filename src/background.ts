@@ -3,12 +3,6 @@ import { handleAuthMessages } from "./core/backgroundAuth"
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (handleAuthMessages(message, sender, sendResponse)) return true
 
-  if (message.action === "openExtractTextPage") {
-    const url = chrome.runtime.getURL("tabs/extract-text.html")
-    chrome.tabs.create({ url })
-    sendResponse({ success: true })
-  }
-
   if (message.action === "openDashboard") {
     const url = chrome.runtime.getURL("tabs/dashboard.html")
     chrome.tabs.query({ url }, (tabs) => {

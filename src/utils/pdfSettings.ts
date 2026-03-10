@@ -1,3 +1,32 @@
+// ─── Header / Footer ─────────────────────────────────────────────────────────
+
+export interface HeaderFooterSettings {
+  headerText: string
+  headerUrl: string   // 可选：设置后文字渲染为可点击链接
+  footerText: string
+  footerUrl: string
+}
+
+export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
+  headerText: "",
+  headerUrl: "",
+  footerText: "",
+  footerUrl: "",
+}
+
+const HEADER_FOOTER_KEY = "fliphtml5_header_footer_settings"
+
+export async function getHeaderFooterSettings(): Promise<HeaderFooterSettings> {
+  const result = await chrome.storage.local.get(HEADER_FOOTER_KEY)
+  return { ...DEFAULT_HEADER_FOOTER, ...(result[HEADER_FOOTER_KEY] ?? {}) }
+}
+
+export async function saveHeaderFooterSettings(settings: HeaderFooterSettings): Promise<void> {
+  await chrome.storage.local.set({ [HEADER_FOOTER_KEY]: settings })
+}
+
+// ─── Watermark ────────────────────────────────────────────────────────────────
+
 export interface WatermarkSettings {
   enabled: boolean
   text: string

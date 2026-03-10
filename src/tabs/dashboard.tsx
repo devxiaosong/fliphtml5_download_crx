@@ -7,11 +7,14 @@ import {
   GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined,
   CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined,
   SafetyCertificateOutlined, SettingOutlined, HistoryOutlined, FileTextOutlined,
-  DeleteOutlined
+  DeleteOutlined, LinkOutlined
 } from "@ant-design/icons"
-import { useSupabaseAuth } from "../core/useSupabaseAuth"
+import { useSupabaseAuth, useUserInfo } from "../core/useSupabaseAuth"
 import { getTierList, getMembership, makeSubscriptionOrder } from "../core/misc"
-import { getWatermarkSettings, saveWatermarkSettings } from "../utils/pdfSettings"
+import {
+  getWatermarkSettings, saveWatermarkSettings,
+  getHeaderFooterSettings, saveHeaderFooterSettings,
+} from "../utils/pdfSettings"
 import { getDownloadHistory, clearDownloadHistory, type HistoryRecord } from "../utils/downloadHistory"
 import "./dashboard.css"
 
@@ -318,15 +321,18 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
 
 function SettingsPanel() {
   const [headerText, setHeaderText] = useState("")
+  const [headerUrl, setHeaderUrl] = useState("")
   const [footerText, setFooterText] = useState("")
+  const [footerUrl, setFooterUrl] = useState("")
   const [wmEnabled, setWmEnabled] = useState(true)
   const [wmText, setWmText] = useState("CONFIDENTIAL")
   const [wmSize, setWmSize] = useState(36)
   const [wmAngle, setWmAngle] = useState(45)
   const [saving, setSaving] = useState(false)
+  const [isPro, setIsPro] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
+  const { user } = useUserInfo()
 
-  // 从 storage 加载水印设置
   useEffect(() => {
     getWatermarkSettings().then((s) => {
       setWmEnabled(s.enabled)
@@ -334,12 +340,26 @@ function SettingsPanel() {
       setWmSize(s.fontSize)
       setWmAngle(s.angle)
     })
+    getHeaderFooterSettings().then((s) => {
+      setHeaderText(s.headerText)
+      setHeaderUrl(s.headerUrl)
+      setFooterText(s.footerText)
+      setFooterUrl(s.footerUrl)
+    })
   }, [])
+
+  useEffect(() => {
+    if (!user) { setIsPro(false); return }
+    getMembership().then((data) => setIsPro(data?.membership === "pro")).catch(() => setIsPro(false))
+  }, [user])
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await saveWatermarkSettings({ enabled: wmEnabled, text: wmText, fontSize: wmSize, angle: wmAngle })
+      await Promise.all([
+        saveWatermarkSettings({ enabled: wmEnabled, text: wmText, fontSize: wmSize, angle: wmAngle }),
+        saveHeaderFooterSettings({ headerText, headerUrl, footerText, footerUrl }),
+      ])
       messageApi.success("Settings saved")
     } catch {
       messageApi.error("Failed to save settings")
@@ -353,29 +373,83 @@ function SettingsPanel() {
       {contextHolder}
       <div className="settings-grid">
 
-        {/* Card: Header & Footer (UI only) */}
+        {/* Card: Header & Footer */}
         <div className="settings-card">
-          <div className="settings-card-title">
-            <FileTextOutlined />
-            Header &amp; Footer
+          <div className="settings-card-title" style={{ justifyContent: "space-between" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <FileTextOutlined />
+              Header &amp; Footer
+            </span>
+            {!isPro && (
+              <Tag icon={<CrownOutlined />} color="gold" style={{ fontSize: 11 }}>Pro</Tag>
+            )}
           </div>
           <Form layout="vertical" size="middle">
-            <Form.Item label="Header Text" style={{ marginBottom: 16 }}>
+
+            {/* Header */}
+            <Form.Item label="Header Text" style={{ marginBottom: 8 }}>
               <Input
                 placeholder="e.g. Confidential · Do Not Distribute"
                 value={headerText}
                 onChange={(e) => setHeaderText(e.target.value)}
                 allowClear
+                disabled={!isPro}
               />
             </Form.Item>
-            <Form.Item label="Footer Text" style={{ marginBottom: 0 }}>
+            <Form.Item
+              label={
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <LinkOutlined style={{ color: isPro ? "#667eea" : "#d9d9d9" }} />
+                  Header Link
+                  <span style={{ color: "#aaa", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>
+                    (optional · text becomes clickable)
+                  </span>
+                </span>
+              }
+              style={{ marginBottom: 16 }}
+            >
               <Input
-                placeholder="e.g. Page {page} of {total}"
+                prefix={<LinkOutlined style={{ color: "#d9d9d9" }} />}
+                placeholder="https://example.com"
+                value={headerUrl}
+                onChange={(e) => setHeaderUrl(e.target.value)}
+                allowClear
+                disabled={!isPro || !headerText}
+              />
+            </Form.Item>
+
+            {/* Footer */}
+            <Form.Item label="Footer Text" style={{ marginBottom: 8 }}>
+              <Input
+                placeholder="e.g. © 2025 My Company"
                 value={footerText}
                 onChange={(e) => setFooterText(e.target.value)}
                 allowClear
+                disabled={!isPro}
               />
             </Form.Item>
+            <Form.Item
+              label={
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <LinkOutlined style={{ color: isPro ? "#667eea" : "#d9d9d9" }} />
+                  Footer Link
+                  <span style={{ color: "#aaa", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>
+                    (optional · text becomes clickable)
+                  </span>
+                </span>
+              }
+              style={{ marginBottom: 0 }}
+            >
+              <Input
+                prefix={<LinkOutlined style={{ color: "#d9d9d9" }} />}
+                placeholder="https://example.com"
+                value={footerUrl}
+                onChange={(e) => setFooterUrl(e.target.value)}
+                allowClear
+                disabled={!isPro || !footerText}
+              />
+            </Form.Item>
+
           </Form>
         </div>
 
@@ -386,32 +460,38 @@ function SettingsPanel() {
               <SettingOutlined />
               Watermark
             </span>
-            <Switch
-              checked={wmEnabled}
-              onChange={setWmEnabled}
-              checkedChildren="ON"
-              unCheckedChildren="OFF"
-              style={wmEnabled ? { background: "#667eea" } : {}}
-            />
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!isPro && (
+                <Tag icon={<CrownOutlined />} color="gold" style={{ fontSize: 11 }}>Pro</Tag>
+              )}
+              <Switch
+                checked={wmEnabled}
+                onChange={setWmEnabled}
+                checkedChildren="ON"
+                unCheckedChildren="OFF"
+                disabled={!isPro}
+                style={wmEnabled && isPro ? { background: "#667eea" } : {}}
+              />
+            </span>
           </div>
           <Form layout="vertical" size="middle">
             <Form.Item label="Text" style={{ marginBottom: 12 }}>
               <Input
                 value={wmText}
                 onChange={(e) => setWmText(e.target.value)}
-                disabled={!wmEnabled}
+                disabled={!isPro || !wmEnabled}
                 allowClear
               />
             </Form.Item>
             <Form.Item label={`Font Size: ${wmSize}px`} style={{ marginBottom: 12 }}>
-              <Slider min={12} max={80} value={wmSize} onChange={(v) => setWmSize(v)} disabled={!wmEnabled} />
+              <Slider min={12} max={80} value={wmSize} onChange={(v) => setWmSize(v)} disabled={!isPro || !wmEnabled} />
             </Form.Item>
             <Form.Item label={`Angle: ${wmAngle}°`} style={{ marginBottom: 12 }}>
-              <Slider min={0} max={360} value={wmAngle} onChange={(v) => setWmAngle(v)} disabled={!wmEnabled} />
+              <Slider min={0} max={360} value={wmAngle} onChange={(v) => setWmAngle(v)} disabled={!isPro || !wmEnabled} />
             </Form.Item>
 
             {/* Live preview */}
-            <div className="wm-preview" style={{ opacity: wmEnabled ? 1 : 0.4 }}>
+            <div className="wm-preview" style={{ opacity: isPro && wmEnabled ? 1 : 0.4 }}>
               <span
                 className="wm-preview-text"
                 style={{
@@ -433,6 +513,7 @@ function SettingsPanel() {
         size="large"
         className="settings-save-btn"
         loading={saving}
+        disabled={!isPro}
         onClick={handleSave}
       >
         Save Settings
