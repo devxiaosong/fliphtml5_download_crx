@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react"
 import {
   ConfigProvider, Button, Avatar, Typography, Spin, Radio, Checkbox,
-  Tag, Divider, message, Tabs, Form, Input, Slider, Table
+  Tag, Divider, message, Tabs, Form, Input, Slider, Table, Switch, Popconfirm
 } from "antd"
 import {
   GoogleOutlined, LogoutOutlined, UserOutlined, FileImageOutlined,
   CrownOutlined, LockOutlined, CheckCircleOutlined, SketchOutlined,
-  SafetyCertificateOutlined, SettingOutlined, HistoryOutlined, FileTextOutlined
+  SafetyCertificateOutlined, SettingOutlined, HistoryOutlined, FileTextOutlined,
+  DeleteOutlined
 } from "@ant-design/icons"
 import { useSupabaseAuth } from "../core/useSupabaseAuth"
 import { getTierList, getMembership, makeSubscriptionOrder } from "../core/misc"
+import { getWatermarkSettings, saveWatermarkSettings } from "../utils/pdfSettings"
+import { getDownloadHistory, clearDownloadHistory, type HistoryRecord } from "../utils/downloadHistory"
 import "./dashboard.css"
 
 const { Title, Text } = Typography
@@ -316,16 +319,41 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
 function SettingsPanel() {
   const [headerText, setHeaderText] = useState("")
   const [footerText, setFooterText] = useState("")
+  const [wmEnabled, setWmEnabled] = useState(true)
   const [wmText, setWmText] = useState("CONFIDENTIAL")
   const [wmSize, setWmSize] = useState(36)
   const [wmAngle, setWmAngle] = useState(45)
+  const [saving, setSaving] = useState(false)
+  const [messageApi, contextHolder] = message.useMessage()
+
+  // 从 storage 加载水印设置
+  useEffect(() => {
+    getWatermarkSettings().then((s) => {
+      setWmEnabled(s.enabled)
+      setWmText(s.text)
+      setWmSize(s.fontSize)
+      setWmAngle(s.angle)
+    })
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await saveWatermarkSettings({ enabled: wmEnabled, text: wmText, fontSize: wmSize, angle: wmAngle })
+      messageApi.success("Settings saved")
+    } catch {
+      messageApi.error("Failed to save settings")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="settings-tab">
-
+      {contextHolder}
       <div className="settings-grid">
 
-        {/* Card: Header & Footer */}
+        {/* Card: Header & Footer (UI only) */}
         <div className="settings-card">
           <div className="settings-card-title">
             <FileTextOutlined />
@@ -353,27 +381,37 @@ function SettingsPanel() {
 
         {/* Card: Watermark */}
         <div className="settings-card">
-          <div className="settings-card-title">
-            <SettingOutlined />
-            Watermark
+          <div className="settings-card-title" style={{ justifyContent: "space-between" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <SettingOutlined />
+              Watermark
+            </span>
+            <Switch
+              checked={wmEnabled}
+              onChange={setWmEnabled}
+              checkedChildren="ON"
+              unCheckedChildren="OFF"
+              style={wmEnabled ? { background: "#667eea" } : {}}
+            />
           </div>
           <Form layout="vertical" size="middle">
             <Form.Item label="Text" style={{ marginBottom: 12 }}>
               <Input
                 value={wmText}
                 onChange={(e) => setWmText(e.target.value)}
+                disabled={!wmEnabled}
                 allowClear
               />
             </Form.Item>
             <Form.Item label={`Font Size: ${wmSize}px`} style={{ marginBottom: 12 }}>
-              <Slider min={12} max={80} value={wmSize} onChange={(v) => setWmSize(v)} />
+              <Slider min={12} max={80} value={wmSize} onChange={(v) => setWmSize(v)} disabled={!wmEnabled} />
             </Form.Item>
             <Form.Item label={`Angle: ${wmAngle}°`} style={{ marginBottom: 12 }}>
-              <Slider min={0} max={360} value={wmAngle} onChange={(v) => setWmAngle(v)} />
+              <Slider min={0} max={360} value={wmAngle} onChange={(v) => setWmAngle(v)} disabled={!wmEnabled} />
             </Form.Item>
 
             {/* Live preview */}
-            <div className="wm-preview">
+            <div className="wm-preview" style={{ opacity: wmEnabled ? 1 : 0.4 }}>
               <span
                 className="wm-preview-text"
                 style={{
@@ -389,7 +427,14 @@ function SettingsPanel() {
 
       </div>
 
-      <Button type="primary" block size="large" className="settings-save-btn">
+      <Button
+        type="primary"
+        block
+        size="large"
+        className="settings-save-btn"
+        loading={saving}
+        onClick={handleSave}
+      >
         Save Settings
       </Button>
     </div>
@@ -399,42 +444,60 @@ function SettingsPanel() {
 // ─── Tab: History ─────────────────────────────────────────────────────────────
 
 const HISTORY_COLUMNS = [
-  {
-    title: "Book Title",
-    dataIndex: "title",
-    key: "title",
-    ellipsis: true,
-  },
-  {
-    title: "Date",
-    dataIndex: "date",
-    key: "date",
-    width: 130,
-  },
-  {
-    title: "Pages",
-    dataIndex: "pages",
-    key: "pages",
-    width: 70,
-    align: "center" as const,
-  },
+  { title: "Book Title", dataIndex: "title", key: "title", ellipsis: true },
+  { title: "Date", dataIndex: "date", key: "date", width: 140 },
+  { title: "Pages", dataIndex: "pages", key: "pages", width: 70, align: "center" as const },
   {
     title: "Type",
     dataIndex: "type",
     key: "type",
     width: 70,
     align: "center" as const,
-    render: (v: string) => (
-      <Tag color={v === "PDF" ? "blue" : "purple"}>{v}</Tag>
-    ),
+    render: (v: string) => <Tag color={v === "PDF" ? "blue" : "purple"}>{v}</Tag>,
   },
 ]
 
 function HistoryPanel() {
+  const [history, setHistory] = useState<HistoryRecord[]>([])
+  const [messageApi, contextHolder] = message.useMessage()
+
+  useEffect(() => {
+    getDownloadHistory().then(setHistory)
+
+    const handler = (changes: Record<string, chrome.storage.StorageChange>) => {
+      if ("fliphtml5_download_history" in changes) {
+        setHistory((changes["fliphtml5_download_history"].newValue as HistoryRecord[]) ?? [])
+      }
+    }
+    chrome.storage.local.onChanged.addListener(handler)
+    return () => chrome.storage.local.onChanged.removeListener(handler)
+  }, [])
+
+  const handleClear = async () => {
+    await clearDownloadHistory()
+    setHistory([])
+    messageApi.success("History cleared")
+  }
+
   return (
     <div className="history-tab">
+      {contextHolder}
+      {history.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <Popconfirm
+            title="Clear all download history?"
+            onConfirm={handleClear}
+            okText="Clear"
+            cancelText="Cancel"
+          >
+            <Button size="small" icon={<DeleteOutlined />} danger>
+              Clear All
+            </Button>
+          </Popconfirm>
+        </div>
+      )}
       <Table
-        dataSource={[]}
+        dataSource={history}
         columns={HISTORY_COLUMNS}
         rowKey="id"
         pagination={false}

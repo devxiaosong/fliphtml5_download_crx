@@ -305,7 +305,7 @@ export async function generatePDF(
     console.log(`Processing image ${i + 1}/${imageUrls.length}...`)
     
     try {
-      const canvas = await imageToCanvas(imageUrls[i], addWatermark)
+      const canvas = await imageToCanvas(imageUrls[i], addWatermark, watermarkOptions)
       const imgData = canvas.toDataURL('image/jpeg', imageQuality)
       await pdf.addImagePage(imgData)
       

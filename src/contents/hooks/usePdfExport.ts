@@ -3,6 +3,8 @@ import { message } from "antd"
 import { generatePDF, downloadPDF } from "../../utils/pdfGenerator"
 import type { PDFOrientation } from "../../utils/pdfGenerator"
 import { logInfo } from "../../core/misc"
+import { getWatermarkSettings } from "../../utils/pdfSettings"
+import { addDownloadHistory } from "../../utils/downloadHistory"
 
 export interface PdfProgressState {
   currentFile: number
@@ -135,6 +137,12 @@ export function usePdfExport({
           ? computeAutoPageSize(metaInfo.pageWidth, metaInfo.pageHeight)
           : undefined
 
+      // 读取用户水印设置
+      const wmSettings = await getWatermarkSettings()
+      const watermarkOptions = wmSettings.enabled
+        ? { text: wmSettings.text, fontSize: wmSettings.fontSize, angle: wmSettings.angle }
+        : undefined
+
       setDownloading(true)
 
       try {
@@ -164,7 +172,8 @@ export function usePdfExport({
             const pdf = await generatePDF(batchImages, {
               orientation: resolvedOrientation,
               customPageSize,
-              addWatermark: true,
+              addWatermark: wmSettings.enabled,
+              watermarkOptions,
               homepage,
               imageQuality,
               onProgress: (current, total) => {
@@ -190,6 +199,7 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | URL: ${currentUrl}`
           )
+          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF" })
         } else {
           setPdfProgress({
             currentFile: 1,
@@ -203,7 +213,8 @@ export function usePdfExport({
           const pdf = await generatePDF(filteredImages, {
             orientation: resolvedOrientation,
             customPageSize,
-            addWatermark: true,
+            addWatermark: wmSettings.enabled,
+            watermarkOptions,
             homepage,
             imageQuality,
             onProgress: (current, total) => {
@@ -224,6 +235,7 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (1 file, ${filteredImages.length} images) | URL: ${currentUrl}`
           )
+          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF" })
         }
       } catch (error) {
         setPdfProgress(null)

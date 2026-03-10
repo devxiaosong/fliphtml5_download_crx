@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { message } from "antd"
 import { logInfo } from "../../core/misc"
+import { addDownloadHistory } from "../../utils/downloadHistory"
 import type { MetaInfo } from "./useScanDialogState"
 
 function getTextForPages(): Promise<any[]> {
@@ -106,6 +107,12 @@ export function useTextExport({ metaInfoRef }: UseTextExportParams) {
       downloadTxt(content, fileName)
       logInfo("extract_text", `Text exported: ${fileName} (${textForPages.length} pages) | URL: ${currentUrl}`)
       message.success(`Text exported: ${fileName}`)
+      addDownloadHistory({
+        title: metaInfoRef.current?.title || "no title",
+        url: currentUrl,
+        pages: textForPages.length,
+        type: "Text",
+      })
     } catch (error) {
       console.error("Failed to extract text:", error)
       message.error("Failed to extract text.")
