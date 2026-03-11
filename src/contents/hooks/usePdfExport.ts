@@ -3,7 +3,7 @@ import { message } from "antd"
 import { generatePDF, downloadPDF } from "../../utils/pdfGenerator"
 import type { PDFOrientation } from "../../utils/pdfGenerator"
 import { logInfo } from "../../core/misc"
-import { getWatermarkSettings, getHeaderFooterSettings, DEFAULT_WATERMARK, FREE_SYSTEM_FOOTER } from "../../utils/pdfSettings"
+import { getWatermarkSettings, getHeaderFooterSettings, DEFAULT_WATERMARK } from "../../utils/pdfSettings"
 export interface PdfProgressState {
   currentFile: number
   totalFiles: number
@@ -155,14 +155,21 @@ export function usePdfExport({
           : undefined
       }
 
-      // Header / Footer：免费用户强制系统品牌 footer；Pro 用户使用自定义设置
+      // Header / Footer：免费用户若 homepage 非空则强制推广文字+链接；Pro 用户使用自定义设置
       let headerText: string | undefined
       let headerUrl: string | undefined
       let footerText: string | undefined
       let footerUrl: string | undefined
       if (!isPro) {
-        footerText = FREE_SYSTEM_FOOTER.footerText
-        footerUrl  = FREE_SYSTEM_FOOTER.footerUrl
+        const homepageUrl = homepage  // homepage 已从 getHomepage() 获取，来自 fliphtml5_rules.homepage
+        if (homepageUrl) {
+          const installText = "Click to install FlipHTML5 Downloader"
+          headerText = installText
+          headerUrl  = homepageUrl
+          footerText = installText
+          footerUrl  = homepageUrl
+        }
+        // homepage 为空时不添加任何 header/footer
       } else {
         const hfSettings = await getHeaderFooterSettings()
         headerText = hfSettings.enabled && hfSettings.headerText ? hfSettings.headerText : undefined

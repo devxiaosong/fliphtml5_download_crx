@@ -113,12 +113,12 @@ class SimplePDFGenerator {
   private objects: string[] = []
   private objectOffsets: number[] = []
   private content: string = ''
-  
+
   private objectId = 0
   private pageIds: number[] = []
   private imageIds: number[] = []
   private fontId: number = 0
-  
+
   constructor(
     private pageWidth: number,
     private pageHeight: number,
@@ -138,33 +138,33 @@ class SimplePDFGenerator {
       )
     }
   }
-  
+
   private addObject(obj: string): number {
     this.objectOffsets.push(this.content.length)
     const id = ++this.objectId
     this.content += `${id} 0 obj\n${obj}\nendobj\n`
     return id
   }
-  
+
   async addImagePage(imageDataUrl: string): Promise<void> {
     // 从 data URL 提取 JPEG 数据
     const base64Data = imageDataUrl.split(',')[1]
     const imageData = atob(base64Data)
-    
+
     // 获取图片尺寸
     const img = new Image()
     img.src = imageDataUrl
     await new Promise(resolve => { img.onload = resolve })
-    
+
     const imgWidth = img.width
     const imgHeight = img.height
-    
+
     // 计算适应页面的尺寸
     const imgRatio = imgWidth / imgHeight
     const pageRatio = this.pageWidth / this.pageHeight
-    
+
     let finalWidth: number, finalHeight: number, x: number, y: number
-    
+
     if (imgRatio > pageRatio) {
       finalWidth = this.pageWidth
       finalHeight = this.pageWidth / imgRatio
@@ -176,56 +176,18 @@ class SimplePDFGenerator {
       x = (this.pageWidth - finalWidth) / 2
       y = 0
     }
-    
+
     // 创建图片对象
     const imageId = this.addObject(
       `<<\n/Type /XObject\n/Subtype /Image\n/Width ${imgWidth}\n/Height ${imgHeight}\n/ColorSpace /DeviceRGB\n/BitsPerComponent 8\n/Filter /DCTDecode\n/Length ${imageData.length}\n>>\nstream\n${imageData}\nendstream`
     )
     this.imageIds.push(imageId)
-    
+
     // 创建页面内容流
     let contentStream = `q\n${finalWidth.toFixed(2)} 0 0 ${finalHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im${imageId} Do\nQ`
-    
+
     // 如果有 homepage，在页眉和页脚添加链接文本
     const linkAnnotIds: number[] = []
-    if (this.homepage && this.homepage.trim() !== '' && this.fontId) {
-      const linkText = 'Download any FlipHTML5 as PDF - Click here'
-      const fontSize = 20
-      
-      // 估算文本宽度（Helvetica字体大约是字号的0.5倍）
-      const textWidth = linkText.length * fontSize * 0.5
-      
-      // 创建 URI Action（页眉和页脚共用）
-      const actionId = this.addObject(
-        `<<\n/S /URI\n/URI (${this.homepage})\n>>`
-      )
-      
-      // 1. 页脚链接（右下角）
-      const footerTextX = this.pageWidth - textWidth - 10  // 距离右边10个单位
-      const footerTextY = 10  // 距离底边10个单位
-      
-      // 添加页脚文本绘制命令（蓝色）
-      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${footerTextX} ${footerTextY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
-      
-      // 创建页脚 Link Annotation
-      const footerLinkAnnotId = this.addObject(
-        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${footerTextX} ${footerTextY} ${footerTextX + textWidth} ${footerTextY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
-      )
-      linkAnnotIds.push(footerLinkAnnotId)
-      
-      // 2. 页眉链接（右上角）
-      const headerTextX = this.pageWidth - textWidth - 10  // 距离右边10个单位
-      const headerTextY = this.pageHeight - fontSize - 10  // 距离顶边10个单位
-      
-      // 添加页眉文本绘制命令（蓝色）
-      contentStream += `\nBT\n/F1 ${fontSize} Tf\n${headerTextX} ${headerTextY} Td\n0 0 1 rg\n(${linkText}) Tj\nET`
-      
-      // 创建页眉 Link Annotation
-      const headerLinkAnnotId = this.addObject(
-        `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${headerTextX} ${headerTextY} ${headerTextX + textWidth} ${headerTextY + fontSize}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
-      )
-      linkAnnotIds.push(headerLinkAnnotId)
-    }
 
     // 自定义 Header 文字（左上角）
     if (this.headerText && this.fontId) {
@@ -264,61 +226,61 @@ class SimplePDFGenerator {
     const contentId = this.addObject(
       `<<\n/Length ${contentStream.length}\n>>\nstream\n${contentStream}\nendstream`
     )
-    
+
     // 创建页面对象（有字体则引用 F1）
     const resourcesDict = this.fontId
       ? `/XObject << /Im${imageId} ${imageId} 0 R >>\n/Font << /F1 ${this.fontId} 0 R >>`
       : `/XObject << /Im${imageId} ${imageId} 0 R >>`
-    
-    const annotsRef = linkAnnotIds.length > 0 
-      ? `/Annots [${linkAnnotIds.map(id => `${id} 0 R`).join(' ')}]\n` 
+
+    const annotsRef = linkAnnotIds.length > 0
+      ? `/Annots [${linkAnnotIds.map(id => `${id} 0 R`).join(' ')}]\n`
       : ''
-    
+
     const pageId = this.addObject(
       `<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n${resourcesDict}\n>>\n/MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}]\n/Contents ${contentId} 0 R\n${annotsRef}>>`
     )
     this.pageIds.push(pageId)
   }
-  
+
   generate(): Blob {
     // 创建 Pages 对象
     const pagesId = this.addObject(
       `<<\n/Type /Pages\n/Kids [${this.pageIds.map(id => `${id} 0 R`).join(' ')}]\n/Count ${this.pageIds.length}\n>>`
     )
-    
+
     // 创建 Catalog 对象
     const catalogId = this.addObject(
       `<<\n/Type /Catalog\n/Pages ${pagesId} 0 R\n>>`
     )
-    
+
     // 创建 Info 对象
     const infoId = this.addObject(
       `<<\n/Title (${this.title})\n/Producer (FlipHTML5 Downloader)\n/Creator (FlipHTML5 Downloader Extension)\n>>`
     )
-    
+
     // 创建 cross-reference table
     const xrefOffset = this.content.length
     this.content += 'xref\n'
     this.content += `0 ${this.objectId + 1}\n`
     this.content += '0000000000 65535 f \n'
-    
+
     for (const offset of this.objectOffsets) {
       this.content += `${offset.toString().padStart(10, '0')} 00000 n \n`
     }
-    
+
     // 创建 trailer
     this.content += 'trailer\n'
     this.content += `<<\n/Size ${this.objectId + 1}\n/Root ${catalogId} 0 R\n/Info ${infoId} 0 R\n>>\n`
     this.content += 'startxref\n'
     this.content += `${xrefOffset}\n`
     this.content += '%%EOF'
-    
+
     // 转换为 Blob
     const bytes = new Uint8Array(this.content.length)
     for (let i = 0; i < this.content.length; i++) {
       bytes[i] = this.content.charCodeAt(i)
     }
-    
+
     return new Blob([bytes], { type: 'application/pdf' })
   }
 }
@@ -353,12 +315,12 @@ export async function generatePDF(
   // 逐页添加图片
   for (let i = 0; i < imageUrls.length; i++) {
     console.log(`Processing image ${i + 1}/${imageUrls.length}...`)
-    
+
     try {
       const canvas = await imageToCanvas(imageUrls[i], addWatermark, watermarkOptions)
       const imgData = canvas.toDataURL('image/jpeg', imageQuality)
       await pdf.addImagePage(imgData)
-      
+
       // 调用进度回调
       if (onProgress) {
         onProgress(i + 1, imageUrls.length)
