@@ -252,7 +252,7 @@ function PricingPanel({ isLoggedIn, onSignIn }: { isLoggedIn: boolean; onSignIn:
           </>
         ) : (
           <>
-            <div className="pc-promo-badge">✦ 25% OFF · LIMITED TIME OFFER</div>
+            <div className="pc-promo-badge">✦ 60% OFF · LIMITED TIME OFFER</div>
             <div className="pc-header-title">Upgrade to Pro</div>
             <div className="pc-header-sub">Unlock PDF customization, full text extraction, and advanced export options</div>
           </>
