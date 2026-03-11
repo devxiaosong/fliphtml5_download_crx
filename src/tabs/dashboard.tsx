@@ -41,7 +41,7 @@ function Dashboard() {
     {
       key: "pricing",
       label: <span className="tab-label"><CrownOutlined />Pricing</span>,
-      children: <PricingPanel isLoggedIn={!!user && !loading} />,
+      children: <PricingPanel isLoggedIn={!!user && !loading} onSignIn={signIn} />,
     },
     {
       key: "settings",
@@ -177,7 +177,7 @@ function LoginCard({ onSignIn }: { onSignIn: () => Promise<void> }) {
 
 // ─── Tab: Pricing ─────────────────────────────────────────────────────────────
 
-function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
+function PricingPanel({ isLoggedIn, onSignIn }: { isLoggedIn: boolean; onSignIn: () => Promise<void> }) {
   const [tierId, setTierId] = useState(0)
   const [checked, setChecked] = useState(false)
   const [tierList, setTierList] = useState<any[]>([])
@@ -209,6 +209,10 @@ function PricingPanel({ isLoggedIn }: { isLoggedIn: boolean }) {
   const currentTier = tierList[tierId]
 
   const handleSubscribe = async () => {
+    if (!isLoggedIn) {
+      await onSignIn()
+      return
+    }
     if (!checked) { messageApi.warning("Please agree to the Terms of Service first"); return }
     if (!currentTier) return
     setSubscribing(true)

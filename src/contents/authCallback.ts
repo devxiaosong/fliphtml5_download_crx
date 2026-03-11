@@ -1,3 +1,22 @@
-// Plasmo 要求 content script 必须放在 src/contents/ 下，
-// 实际逻辑在 src/core/authCallback.ts，此处直接 re-export。
-export { config } from "../core/authCallback"
+import type { PlasmoCSConfig } from "plasmo"
+
+export const config: PlasmoCSConfig = {
+  matches: ["https://product.extensionkit.cc/auth/callback*"],
+  run_at: "document_start"
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return
+  if (event.data?.type !== "SUPABASE_TOKEN") return
+
+  const target = event.data?.target as string | undefined
+  if (!target) return
+  const targetExtId = target.match(/^chrome-extension:\/\/([^/]+)/)?.[1]
+  if (targetExtId !== chrome.runtime.id) return
+
+  chrome.runtime.sendMessage({
+    type: "SUPABASE_TOKEN",
+    hash: event.data.hash,
+    target
+  })
+})
