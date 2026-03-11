@@ -16,6 +16,12 @@ export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
   footerUrl: "",
 }
 
+// 免费用户强制显示的系统品牌 footer
+export const FREE_SYSTEM_FOOTER = {
+  footerText: "FlipHTML5 PDF Downloader",
+  footerUrl: "https://www.fliphtml5.com",
+}
+
 const HEADER_FOOTER_KEY = "fliphtml5_header_footer_settings"
 
 export async function getHeaderFooterSettings(): Promise<HeaderFooterSettings> {

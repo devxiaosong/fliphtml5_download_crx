@@ -48,7 +48,8 @@ function ScanDialog() {
   const pdfExport = usePdfExport({
     imageState,
     metaInfo,
-    getHomepage
+    getHomepage,
+    isPro,
   })
   const {
     splitMode,

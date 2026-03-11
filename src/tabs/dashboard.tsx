@@ -470,8 +470,8 @@ function SettingsPanel() {
 
             {!isPro && (
               <div style={{ marginTop: 14, padding: "8px 12px", background: "#fffbe6", borderRadius: 8, border: "1px solid #ffe58f", fontSize: 12, color: "#ad6800", lineHeight: 1.6 }}>
-                🔒 Free plan: no header or footer is added to your PDFs.<br />
-                Upgrade to Pro to add custom text and links.
+🔒 Free plan: a system footer is added to your PDFs.<br />
+                        Upgrade to Pro to customize header &amp; footer with your own text and links.
               </div>
             )}
           </Form>
@@ -567,7 +567,7 @@ const HISTORY_COLUMNS = [
   },
   { title: "Book Title", dataIndex: "title", key: "title", ellipsis: true },
   { title: "Date", dataIndex: "date", key: "date", width: 150 },
-  { title: "Pages", dataIndex: "pages", key: "pages", width: 70, align: "center" as const },
+  { title: "Pages", dataIndex: "pages", key: "pages", width: 90, align: "center" as const },
 ]
 
 function HistoryPanel() {

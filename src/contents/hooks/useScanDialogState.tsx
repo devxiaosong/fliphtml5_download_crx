@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Modal, message } from "antd"
 import { logInfo, getAppInfo } from "../../core/misc"
 import { useTextExport } from "./useTextExport"
+import { addDownloadHistory } from "../../utils/downloadHistory"
 
 export interface ImageState {
   thumbImages: string[]
@@ -129,6 +130,14 @@ export function useScanDialogState(): UseScanDialogStateReturn {
           isLoaded: true
         })
         coverUrlRef.current = normalImages[0]
+
+        addDownloadHistory({
+          title: meta.title,
+          url: currentUrl,
+          pages: meta.pageCount || thumbImages.length,
+          type: "PDF",
+          coverUrl: normalImages[0],
+        })
 
         logInfo(
           "load_images",

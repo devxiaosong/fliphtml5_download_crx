@@ -3,9 +3,7 @@ import { message } from "antd"
 import { generatePDF, downloadPDF } from "../../utils/pdfGenerator"
 import type { PDFOrientation } from "../../utils/pdfGenerator"
 import { logInfo } from "../../core/misc"
-import { getWatermarkSettings } from "../../utils/pdfSettings"
-import { addDownloadHistory } from "../../utils/downloadHistory"
-
+import { getWatermarkSettings, getHeaderFooterSettings, DEFAULT_WATERMARK, FREE_SYSTEM_FOOTER } from "../../utils/pdfSettings"
 export interface PdfProgressState {
   currentFile: number
   totalFiles: number
@@ -18,6 +16,7 @@ interface UsePdfExportParams {
   imageState: { normalImages: string[]; totalPages: number }
   metaInfo: { title: string; pageWidth?: number; pageHeight?: number } | null
   getHomepage: () => string | undefined
+  isPro: boolean
 }
 
 function computeAutoPageSize(
@@ -64,7 +63,8 @@ function generatePdfFileName(
 export function usePdfExport({
   imageState,
   metaInfo,
-  getHomepage
+  getHomepage,
+  isPro,
 }: UsePdfExportParams) {
   const [splitMode, setSplitMode] = useState<"all" | "custom">("all")
   const [pagesPerFile, setPagesPerFile] = useState<number>(150)
@@ -137,11 +137,39 @@ export function usePdfExport({
           ? computeAutoPageSize(metaInfo.pageWidth, metaInfo.pageHeight)
           : undefined
 
-      // 读取用户水印设置
-      const wmSettings = await getWatermarkSettings()
-      const watermarkOptions = wmSettings.enabled
-        ? { text: wmSettings.text, fontSize: wmSettings.fontSize, angle: wmSettings.angle }
-        : undefined
+      // 水印：免费用户强制使用系统默认；Pro 用户使用自定义设置
+      let addWatermarkFlag: boolean
+      let watermarkOptions: { text: string; fontSize: number; angle: number } | undefined
+      if (!isPro) {
+        addWatermarkFlag = true
+        watermarkOptions = {
+          text: DEFAULT_WATERMARK.text,
+          fontSize: DEFAULT_WATERMARK.fontSize,
+          angle: DEFAULT_WATERMARK.angle,
+        }
+      } else {
+        const wmSettings = await getWatermarkSettings()
+        addWatermarkFlag = wmSettings.enabled
+        watermarkOptions = wmSettings.enabled
+          ? { text: wmSettings.text, fontSize: wmSettings.fontSize, angle: wmSettings.angle }
+          : undefined
+      }
+
+      // Header / Footer：免费用户强制系统品牌 footer；Pro 用户使用自定义设置
+      let headerText: string | undefined
+      let headerUrl: string | undefined
+      let footerText: string | undefined
+      let footerUrl: string | undefined
+      if (!isPro) {
+        footerText = FREE_SYSTEM_FOOTER.footerText
+        footerUrl  = FREE_SYSTEM_FOOTER.footerUrl
+      } else {
+        const hfSettings = await getHeaderFooterSettings()
+        headerText = hfSettings.enabled && hfSettings.headerText ? hfSettings.headerText : undefined
+        headerUrl  = headerText && hfSettings.headerUrl ? hfSettings.headerUrl : undefined
+        footerText = hfSettings.enabled && hfSettings.footerText ? hfSettings.footerText : undefined
+        footerUrl  = footerText && hfSettings.footerUrl ? hfSettings.footerUrl : undefined
+      }
 
       setDownloading(true)
 
@@ -172,10 +200,11 @@ export function usePdfExport({
             const pdf = await generatePDF(batchImages, {
               orientation: resolvedOrientation,
               customPageSize,
-              addWatermark: wmSettings.enabled,
+              addWatermark: addWatermarkFlag,
               watermarkOptions,
               homepage,
               imageQuality,
+              headerText, headerUrl, footerText, footerUrl,
               onProgress: (current, total) => {
                 setPdfProgress({
                   currentFile: i + 1,
@@ -199,7 +228,6 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (${totalFiles} files, ${filteredImages.length} images total) | URL: ${currentUrl}`
           )
-          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF", coverUrl: imageState.normalImages[0] })
         } else {
           setPdfProgress({
             currentFile: 1,
@@ -213,10 +241,11 @@ export function usePdfExport({
           const pdf = await generatePDF(filteredImages, {
             orientation: resolvedOrientation,
             customPageSize,
-            addWatermark: wmSettings.enabled,
+            addWatermark: addWatermarkFlag,
             watermarkOptions,
             homepage,
             imageQuality,
+            headerText, headerUrl, footerText, footerUrl,
             onProgress: (current, total) => {
               setPdfProgress({
                 currentFile: 1,
@@ -235,7 +264,6 @@ export function usePdfExport({
             "end_download",
             `PDF downloaded successfully (1 file, ${filteredImages.length} images) | URL: ${currentUrl}`
           )
-          addDownloadHistory({ title, url: currentUrl, pages: filteredImages.length, type: "PDF", coverUrl: imageState.normalImages[0] })
         }
       } catch (error) {
         setPdfProgress(null)
@@ -257,7 +285,8 @@ export function usePdfExport({
       pagesPerFile,
       imageQuality,
       metaInfo?.title,
-      getHomepage
+      getHomepage,
+      isPro,
     ]
   )
 

@@ -15,6 +15,15 @@ interface PDFOptions {
   customPageSize?: { width: number; height: number }
   onProgress?: (current: number, total: number) => void
   imageQuality?: number
+  headerText?: string
+  headerUrl?: string
+  footerText?: string
+  footerUrl?: string
+}
+
+// PDF 字符串中转义特殊字符
+function escapePdfString(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
 }
 
 // PDF 页面尺寸（单位：points, 1mm = 2.83465 points）
@@ -114,12 +123,16 @@ class SimplePDFGenerator {
     private pageWidth: number,
     private pageHeight: number,
     private title: string = 'Document',
-    private homepage?: string
+    private homepage?: string,
+    private headerText?: string,
+    private headerUrl?: string,
+    private footerText?: string,
+    private footerUrl?: string,
   ) {
     this.content = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'
-    
-    // 如果有 homepage，添加字体对象
-    if (this.homepage) {
+
+    // 任何文字渲染（homepage / 自定义 header / footer）都需要字体对象
+    if (this.homepage || this.headerText || this.footerText) {
       this.fontId = this.addObject(
         `<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>`
       )
@@ -213,13 +226,47 @@ class SimplePDFGenerator {
       )
       linkAnnotIds.push(headerLinkAnnotId)
     }
-    
+
+    // 自定义 Header 文字（左上角）
+    if (this.headerText && this.fontId) {
+      const fs = 11
+      const txt = escapePdfString(this.headerText)
+      const tw = this.headerText.length * fs * 0.52
+      const tx = 10
+      const ty = this.pageHeight - fs - 8
+      const color = this.headerUrl ? '0 0 0.8 rg' : '0.3 0.3 0.3 rg'
+      contentStream += `\nBT\n/F1 ${fs} Tf\n${tx} ${ty} Td\n${color}\n(${txt}) Tj\nET`
+      if (this.headerUrl) {
+        const actionId = this.addObject(`<<\n/S /URI\n/URI (${this.headerUrl})\n>>`)
+        linkAnnotIds.push(this.addObject(
+          `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${tx} ${ty} ${tx + tw} ${ty + fs}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
+        ))
+      }
+    }
+
+    // 自定义 Footer 文字（左下角）
+    if (this.footerText && this.fontId) {
+      const fs = 11
+      const txt = escapePdfString(this.footerText)
+      const tw = this.footerText.length * fs * 0.52
+      const tx = 10
+      const ty = 8
+      const color = this.footerUrl ? '0 0 0.8 rg' : '0.3 0.3 0.3 rg'
+      contentStream += `\nBT\n/F1 ${fs} Tf\n${tx} ${ty} Td\n${color}\n(${txt}) Tj\nET`
+      if (this.footerUrl) {
+        const actionId = this.addObject(`<<\n/S /URI\n/URI (${this.footerUrl})\n>>`)
+        linkAnnotIds.push(this.addObject(
+          `<<\n/Type /Annot\n/Subtype /Link\n/Rect [${tx} ${ty} ${tx + tw} ${ty + fs}]\n/Border [0 0 0]\n/A ${actionId} 0 R\n>>`
+        ))
+      }
+    }
+
     const contentId = this.addObject(
       `<<\n/Length ${contentStream.length}\n>>\nstream\n${contentStream}\nendstream`
     )
     
-    // 创建页面对象
-    const resourcesDict = this.homepage && this.fontId 
+    // 创建页面对象（有字体则引用 F1）
+    const resourcesDict = this.fontId
       ? `/XObject << /Im${imageId} ${imageId} 0 R >>\n/Font << /F1 ${this.fontId} 0 R >>`
       : `/XObject << /Im${imageId} ${imageId} 0 R >>`
     
@@ -285,19 +332,22 @@ export async function generatePDF(
     throw new Error('No images to generate PDF')
   }
 
-  const { orientation, addWatermark, watermarkOptions, title, homepage, customPageSize, onProgress, imageQuality = 0.92 } = options
+  const {
+    orientation, addWatermark, watermarkOptions, title, homepage,
+    customPageSize, onProgress, imageQuality = 0.92,
+    headerText, headerUrl, footerText, footerUrl,
+  } = options
   const pageSize = customPageSize ?? PAGE_SIZES[orientation]
-  
-  console.log(`Generating PDF with ${imageUrls.length} images...`)
-  console.log(`Page size: ${pageSize.width}x${pageSize.height} points`)
-  console.log(`Watermark: ${addWatermark ? 'Yes' : 'No'}`)
-  console.log(`Homepage: ${homepage || 'None'}`)
 
   const pdf = new SimplePDFGenerator(
     pageSize.width,
     pageSize.height,
     title || 'FlipHTML5 Download',
-    homepage
+    homepage,
+    headerText,
+    headerUrl,
+    footerText,
+    footerUrl,
   )
 
   // 逐页添加图片
