@@ -12,8 +12,9 @@ window.addEventListener("message", (event) => {
   // 从 target URL 中提取插件 ID，只处理发给当前插件的消息
   const target = event.data?.target as string | undefined
   if (!target) return
-  const targetExtId = target.match(/^chrome-extension:\/\/([^/]+)/)?.[1]
-  if (targetExtId !== chrome.runtime.id) return
+  // 兼容 Chrome (chrome-extension://) 和 Firefox (moz-extension://)
+  const extBase = chrome.runtime.getURL("").replace(/\/$/, "")
+  if (!target.startsWith(extBase)) return
 
   chrome.runtime.sendMessage({
     type: "SUPABASE_TOKEN",

@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "plasmo dev",
     "dev:chrome": "plasmo dev --target=chrome-mv3",
-    "dev:firefox": "plasmo dev --target=firefox-mv3",
+    "dev:firefox": "plasmo dev --target=firefox-mv2",
     "dev:edge": "plasmo dev --target=edge-mv3",
     "build": "plasmo build",
     "build:chrome": "plasmo build --target=chrome-mv3",
-    "build:firefox": "plasmo build --target=firefox-mv3",
+    "build:firefox": "plasmo build --target=firefox-mv2",
     "build:edge": "plasmo build --target=edge-mv3",
     "build:all": "npm run build:chrome && npm run build:firefox && npm run build:edge",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -21,12 +21,23 @@
   "manifest": {
     "host_permissions": [
       "https://fliphtml5.com/*",
-      "https://online.fliphtml5.com/*"
+      "https://online.fliphtml5.com/*",
+      "https://*.supabase.co/*"
     ],
     "permissions": [
       "activeTab",
       "storage"
-    ]
+    ],
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "fliphtml5-downloader@example.com",
+        "data_collection_permissions": {
+          "required": [
+            "none"
+          ]
+        }
+      }
+    }
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

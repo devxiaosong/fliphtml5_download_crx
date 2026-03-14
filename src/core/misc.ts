@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient'
 import { productInfo } from './config'
+import { storageGet, storageSet } from '../utils/chromeStorage'
 
 // 定义应用信息接口
 export interface AppInfo {
@@ -58,18 +59,18 @@ function logEventInfo(
     eventBody:string,
     level:string
 ) {
-    getDeviceId().then(data=>{
-        supabase.functions.invoke('log-event', {
-            body: JSON.stringify(
-                {
-                    ...getProductInfo(),
-                    device_uuid: data,
-                    event_name: eventName,
-                    event_body: eventBody,
-                    log_level: level
-                }
-            )
-        });
+    getDeviceId().then(deviceId => {
+        const payload = {
+            ...getProductInfo(),
+            device_uuid: deviceId,
+            event_name: eventName,
+            event_body: eventBody,
+            log_level: level
+        }
+        chrome.runtime.sendMessage({ action: "logEvent", payload }, () => {
+            // 忽略响应和 lastError（火忘式）
+            void chrome.runtime.lastError
+        })
     })
 }
 
@@ -108,12 +109,21 @@ export async function getMembership(): Promise<any | null> {
         return memebership
     }
 
-    const { data, error } = await supabase.functions.invoke('get-membership', {
-        body: JSON.stringify(getProductInfo())
+    const productInfo = getProductInfo()
+    const result = await new Promise<{ data: any; error: string | null }>((resolve) => {
+        chrome.runtime.sendMessage(
+            { action: "getMembership", productInfo },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    resolve({ data: null, error: chrome.runtime.lastError.message ?? "sendMessage failed" })
+                } else {
+                    resolve(response ?? { data: null, error: "empty response" })
+                }
+            }
+        )
     })
 
-    memebership = data
-
+    if (result.data) memebership = result.data
     return memebership
 }
 
@@ -126,21 +136,38 @@ export async function makeSubscriptionOrder(tier_uuid: string): Promise<any> {
 }
 
 async function checkApp() {
-    const {data, error} = await supabase.functions.invoke('check-app', {
-        body: getProductInfo()
-    });
+    const productInfo = getProductInfo()
 
-    dynamicRules = data['dynamic_rules']
+    // 通过 background 发起请求，绕过 Firefox 内容脚本受页面 CSP 限制的问题
+    const result = await new Promise<{ data: any; error: string | null }>((resolve) => {
+        chrome.runtime.sendMessage(
+            { action: "getAppConfig", productInfo },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    resolve({ data: null, error: chrome.runtime.lastError.message ?? "sendMessage failed" })
+                } else {
+                    resolve(response ?? { data: null, error: "empty response" })
+                }
+            }
+        )
+    })
 
-    tierList     = data['tier_list']
-
-    appInfo      = data
+    const data = result.data
+    if (result.error) {
+        console.warn("[check-app] error from background:", result.error)
+    }
+    if (data && typeof data === "object") {
+        dynamicRules = data["dynamic_rules"] ?? null
+        tierList     = data["tier_list"] ?? null
+        appInfo      = data
+    }
 }
 
 export function getProductInfo() {
     const st = productInfo
 
     st.version    = chrome.runtime.getManifest().version;
+
     st.product_id = chrome.runtime.id;
 
     return st
@@ -148,12 +175,12 @@ export function getProductInfo() {
 
 // 获取或生成唯一标识符
 async function getDeviceId(): Promise<string> {
-    const st = await chrome.storage.local.get('uniqueId')
+    const st = await storageGet('uniqueId')
 
     let uniqueId = ''
     if (!st || !st.uniqueId) {
         let createUniqueId = generateUUID();
-        await chrome.storage.local.set({uniqueId: createUniqueId})
+        await storageSet({uniqueId: createUniqueId})
         uniqueId = createUniqueId
     } else {
         uniqueId = st.uniqueId as string

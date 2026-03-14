@@ -178,6 +178,7 @@ export function useScanDialogState(): UseScanDialogStateReturn {
       setLoading(true)
       try {
         const appInfo = await getAppInfo()
+
         if (cancelled || !appInfo || !(appInfo as any).fliphtml5_rules) {
           if (!cancelled) throw new Error("fliphtml5_rules not found in appInfo")
           return

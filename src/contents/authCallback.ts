@@ -11,8 +11,9 @@ window.addEventListener("message", (event) => {
 
   const target = event.data?.target as string | undefined
   if (!target) return
-  const targetExtId = target.match(/^chrome-extension:\/\/([^/]+)/)?.[1]
-  if (targetExtId !== chrome.runtime.id) return
+  // 兼容 Chrome (chrome-extension://) 和 Firefox (moz-extension://)
+  const extBase = chrome.runtime.getURL("").replace(/\/$/, "")
+  if (!target.startsWith(extBase)) return
 
   chrome.runtime.sendMessage({
     type: "SUPABASE_TOKEN",

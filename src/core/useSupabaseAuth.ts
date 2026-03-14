@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import type { User, Session } from "@supabase/supabase-js"
 import { supabase } from "./supabaseClient"
 import { pairUserAndProductRelation } from "./misc"
+import { storageGet, storageRemove } from "../utils/chromeStorage"
 
 export interface AuthState {
   user: User | null
@@ -33,14 +34,14 @@ export function useSupabaseAuth() {
 
     const init = async () => {
       // 优先消费 background 存入的 pending session（OAuth 回调后）
-      const result = await chrome.storage.local.get("fliphtml5_pending_session")
+      const result = await storageGet("fliphtml5_pending_session")
       const pending = result.fliphtml5_pending_session as
         | { access_token: string; refresh_token: string }
         | undefined
 
       if (pending?.access_token && pending?.refresh_token) {
         console.log("[useSupabaseAuth] consuming pending session...")
-        await chrome.storage.local.remove("fliphtml5_pending_session")
+        await storageRemove("fliphtml5_pending_session")
         const { data, error } = await supabase.auth.setSession({
           access_token: pending.access_token,
           refresh_token: pending.refresh_token

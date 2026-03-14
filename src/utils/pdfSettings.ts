@@ -1,3 +1,5 @@
+import { storageGet, storageSet } from "./chromeStorage"
+
 // ─── Header / Footer ─────────────────────────────────────────────────────────
 
 export interface HeaderFooterSettings {
@@ -20,12 +22,12 @@ export const DEFAULT_HEADER_FOOTER: HeaderFooterSettings = {
 const HEADER_FOOTER_KEY = "fliphtml5_header_footer_settings"
 
 export async function getHeaderFooterSettings(): Promise<HeaderFooterSettings> {
-  const result = await chrome.storage.local.get(HEADER_FOOTER_KEY)
+  const result = await storageGet(HEADER_FOOTER_KEY)
   return { ...DEFAULT_HEADER_FOOTER, ...(result[HEADER_FOOTER_KEY] ?? {}) }
 }
 
 export async function saveHeaderFooterSettings(settings: HeaderFooterSettings): Promise<void> {
-  await chrome.storage.local.set({ [HEADER_FOOTER_KEY]: settings })
+  await storageSet({ [HEADER_FOOTER_KEY]: settings })
 }
 
 // ─── Watermark ────────────────────────────────────────────────────────────────
@@ -47,10 +49,10 @@ export const DEFAULT_WATERMARK: WatermarkSettings = {
 const WATERMARK_KEY = "fliphtml5_watermark_settings"
 
 export async function getWatermarkSettings(): Promise<WatermarkSettings> {
-  const result = await chrome.storage.local.get(WATERMARK_KEY)
+  const result = await storageGet(WATERMARK_KEY)
   return { ...DEFAULT_WATERMARK, ...(result[WATERMARK_KEY] ?? {}) }
 }
 
 export async function saveWatermarkSettings(settings: WatermarkSettings): Promise<void> {
-  await chrome.storage.local.set({ [WATERMARK_KEY]: settings })
+  await storageSet({ [WATERMARK_KEY]: settings })
 }

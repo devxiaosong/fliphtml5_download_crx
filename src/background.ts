@@ -1,6 +1,9 @@
-import { handleAuthMessages } from "./core/backgroundAuth"
+import { handleAuthMessages, handleAppConfigMessages, handleMembershipMessages, handleLogEventMessages } from "./core/backgroundAuth"
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (handleAppConfigMessages(message, sender, sendResponse)) return true
+  if (handleMembershipMessages(message, sender, sendResponse)) return true
+  if (handleLogEventMessages(message, sender, sendResponse)) return true
   if (handleAuthMessages(message, sender, sendResponse)) return true
 
   if (message.action === "openDashboard") {
