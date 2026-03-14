@@ -1,4 +1,4 @@
-import { storageGet, storageSet, storageRemove } from "./chromeStorage"
+import { storageGet, storageSet, storageRemove } from "../core/chromeStorage"
 
 export interface HistoryRecord {
   id: string

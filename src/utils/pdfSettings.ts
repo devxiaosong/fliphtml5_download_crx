@@ -1,4 +1,4 @@
-import { storageGet, storageSet } from "./chromeStorage"
+import { storageGet, storageSet } from "../core/chromeStorage"
 
 // ─── Header / Footer ─────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
 import { productInfo } from './config'
-import { storageGet, storageSet } from '../utils/chromeStorage'
+import { storageGet, storageSet } from './chromeStorage'
 
 // 定义应用信息接口
 export interface AppInfo {

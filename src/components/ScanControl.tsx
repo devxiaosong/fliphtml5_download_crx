@@ -3,7 +3,7 @@ import { Button, Slider, Flex, Typography, Divider, Avatar, Tooltip } from "antd
 import { PlayCircleOutlined, LinkOutlined, FileImageOutlined, UserOutlined } from "@ant-design/icons"
 import { logInfo } from "../core/misc"
 import { useSupabaseAuth } from "../core/useSupabaseAuth"
-import { tabsQuery } from "../utils/chromeStorage"
+import { tabsQuery } from "../core/chromeStorage"
 
 const { Text, Link, Title } = Typography
 
