@@ -3,14 +3,15 @@ import { Button, Slider, Flex, Typography, Divider, Avatar, Tooltip } from "antd
 import { PlayCircleOutlined, LinkOutlined, FileImageOutlined, UserOutlined } from "@ant-design/icons"
 import { logInfo } from "../core/misc"
 import { useSupabaseAuth } from "../core/useSupabaseAuth"
+import { tabsQuery } from "../utils/chromeStorage"
 
 const { Text, Link, Title } = Typography
 
 // 辅助函数：获取当前页面信息（URL 和页码）
 const getPageInfo = async (): Promise<string> => {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    const url = tab.url || 'unknown'
+    const [tab] = await tabsQuery({ active: true, currentWindow: true })
+    const url = tab?.url || 'unknown'
 
     // 尝试从 URL 中提取页码 (格式: #p=1 或 &p=1)
     let pageNumber = 'N/A'
@@ -40,8 +41,8 @@ export default function ScanControl() {
     try {
       const pageInfo = await getPageInfo()
 
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      const url = tab.url || ''
+      const [tab] = await tabsQuery({ active: true, currentWindow: true })
+      const url = tab?.url || ''
 
       // 去掉协议部分 (http:// 或 https://)
       const urlWithoutProtocol = url.split('//')[1] || ''
@@ -112,7 +113,7 @@ export default function ScanControl() {
       const pageInfo = await getPageInfo()
 
       // 获取当前活动的标签页
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      const [tab] = await tabsQuery({ active: true, currentWindow: true })
 
       if (!tab.id) {
         console.error('No active tab found')

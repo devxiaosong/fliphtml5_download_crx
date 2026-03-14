@@ -54,6 +54,9 @@ export function pairUserAndProductRelation() {
     logEventInfo('login', 'done', 'info')
 }
 
+// Firefox 内容脚本 fetch 受页面 CSP 限制，必须走 background；Chrome/Edge 直接调即可
+const IS_FIREFOX = process.env.PLASMO_BROWSER === 'firefox'
+
 function logEventInfo(
     eventName:string,
     eventBody:string,
@@ -67,10 +70,11 @@ function logEventInfo(
             event_body: eventBody,
             log_level: level
         }
-        chrome.runtime.sendMessage({ action: "logEvent", payload }, () => {
-            // 忽略响应和 lastError（火忘式）
-            void chrome.runtime.lastError
-        })
+        if (IS_FIREFOX) {
+            chrome.runtime.sendMessage({ action: "logEvent", payload }, () => { void chrome.runtime.lastError })
+        } else {
+            supabase.functions.invoke('log-event', { body: JSON.stringify(payload) }).catch(() => {})
+        }
     })
 }
 
@@ -110,20 +114,22 @@ export async function getMembership(): Promise<any | null> {
     }
 
     const productInfo = getProductInfo()
-    const result = await new Promise<{ data: any; error: string | null }>((resolve) => {
-        chrome.runtime.sendMessage(
-            { action: "getMembership", productInfo },
-            (response) => {
-                if (chrome.runtime.lastError) {
-                    resolve({ data: null, error: chrome.runtime.lastError.message ?? "sendMessage failed" })
-                } else {
-                    resolve(response ?? { data: null, error: "empty response" })
-                }
-            }
-        )
-    })
 
-    if (result.data) memebership = result.data
+    if (IS_FIREFOX) {
+        const result = await new Promise<{ data: any }>((resolve) => {
+            chrome.runtime.sendMessage({ action: "getMembership", productInfo }, (response) => {
+                void chrome.runtime.lastError
+                resolve(response ?? { data: null })
+            })
+        })
+        memebership = result.data
+    } else {
+        const { data } = await supabase.functions.invoke('get-membership', {
+            body: JSON.stringify(productInfo)
+        })
+        memebership = data
+    }
+
     return memebership
 }
 
@@ -137,25 +143,30 @@ export async function makeSubscriptionOrder(tier_uuid: string): Promise<any> {
 
 async function checkApp() {
     const productInfo = getProductInfo()
+    let data: any = null
 
-    // 通过 background 发起请求，绕过 Firefox 内容脚本受页面 CSP 限制的问题
-    const result = await new Promise<{ data: any; error: string | null }>((resolve) => {
-        chrome.runtime.sendMessage(
-            { action: "getAppConfig", productInfo },
-            (response) => {
-                if (chrome.runtime.lastError) {
-                    resolve({ data: null, error: chrome.runtime.lastError.message ?? "sendMessage failed" })
-                } else {
-                    resolve(response ?? { data: null, error: "empty response" })
-                }
-            }
-        )
-    })
-
-    const data = result.data
-    if (result.error) {
-        console.warn("[check-app] error from background:", result.error)
+    if (IS_FIREFOX) {
+        // Firefox：走 background，绕过页面 CSP
+        const result = await new Promise<{ data: any }>((resolve) => {
+            chrome.runtime.sendMessage({ action: "getAppConfig", productInfo }, (response) => {
+                void chrome.runtime.lastError
+                resolve(response ?? { data: null })
+            })
+        })
+        data = result.data
+    } else {
+        // Chrome/Edge：直接调用
+        try {
+            const { data: resData, error } = await supabase.functions.invoke('check-app', {
+                body: productInfo
+            })
+            if (error) console.warn('[check-app] error:', error)
+            data = resData
+        } catch (e) {
+            console.warn('[check-app] exception:', e)
+        }
     }
+
     if (data && typeof data === "object") {
         dynamicRules = data["dynamic_rules"] ?? null
         tierList     = data["tier_list"] ?? null
