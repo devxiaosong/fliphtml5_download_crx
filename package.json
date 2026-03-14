@@ -1,7 +1,7 @@
 {
   "name": "FlipHTML5 PDF Downloader",
   "displayName": "FlipHTML5 PDF Downloader",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Download FlipHTML5 flipbooks to high-quality PDF. A fast and easy flipbook to PDF converter for offline reading.",
   "scripts": {
     "dev": "plasmo dev",
