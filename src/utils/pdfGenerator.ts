@@ -8,6 +8,7 @@ export interface WatermarkOptions {
 
 interface PDFOptions {
   orientation: PDFOrientation
+  isPaywall?: boolean
   addWatermark: boolean
   watermarkOptions?: WatermarkOptions
   title?: string
@@ -31,6 +32,29 @@ const PAGE_SIZES = {
   portrait: { width: 595, height: 842 },    // A4 纵向 (210x297mm)
   landscape: { width: 842, height: 595 },   // A4 横向
   square: { width: 595, height: 595 }       // 正方形
+}
+
+// Paywall 水印：单条居中、字号 180、完全不透明黑色
+const PAYWALL_TEXT = 'DEMO'
+const PAYWALL_FONT_SIZE = 180
+const PAYWALL_ANGLE = 45
+
+function addPaywallWatermarkToCanvas(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D
+): void {
+  const scaledFontSize = Math.max(24, Math.round(PAYWALL_FONT_SIZE * canvas.width / 595))
+  const radians = -(PAYWALL_ANGLE * Math.PI / 180)
+
+  ctx.save()
+  ctx.font = `bold ${scaledFontSize}px sans-serif`
+  ctx.fillStyle = 'rgba(0, 0, 0, 1.0)'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.translate(canvas.width / 2, canvas.height / 2)
+  ctx.rotate(radians)
+  ctx.fillText(PAYWALL_TEXT, 0, 0)
+  ctx.restore()
 }
 
 // 添加水印到canvas（支持自定义文字、字号、角度）
@@ -86,7 +110,8 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
 export async function imageToCanvas(
   imageUrl: string,
   addWatermark: boolean,
-  watermarkOptions?: WatermarkOptions
+  watermarkOptions?: WatermarkOptions,
+  isPaywall?: boolean
 ): Promise<HTMLCanvasElement> {
   const img = await loadImage(imageUrl)
 
@@ -101,7 +126,9 @@ export async function imageToCanvas(
 
   ctx.drawImage(img, 0, 0)
 
-  if (addWatermark && watermarkOptions) {
+  if (isPaywall) {
+    addPaywallWatermarkToCanvas(canvas, ctx)
+  } else if (addWatermark && watermarkOptions) {
     addWatermarkToCanvas(canvas, ctx, watermarkOptions)
   }
 
@@ -295,7 +322,7 @@ export async function generatePDF(
   }
 
   const {
-    orientation, addWatermark, watermarkOptions, title, homepage,
+    orientation, isPaywall, addWatermark, watermarkOptions, title, homepage,
     customPageSize, onProgress, imageQuality = 0.92,
     headerText, headerUrl, footerText, footerUrl,
   } = options
@@ -317,7 +344,7 @@ export async function generatePDF(
     console.log(`Processing image ${i + 1}/${imageUrls.length}...`)
 
     try {
-      const canvas = await imageToCanvas(imageUrls[i], addWatermark, watermarkOptions)
+      const canvas = await imageToCanvas(imageUrls[i], addWatermark, watermarkOptions, isPaywall)
       const imgData = canvas.toDataURL('image/jpeg', imageQuality)
       await pdf.addImagePage(imgData)
 

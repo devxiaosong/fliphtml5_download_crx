@@ -3,7 +3,7 @@ import { message } from "antd"
 import { generatePDF, downloadPDF } from "../../utils/pdfGenerator"
 import type { PDFOrientation } from "../../utils/pdfGenerator"
 import { logInfo } from "../../core/misc"
-import { getWatermarkSettings, getHeaderFooterSettings, DEFAULT_WATERMARK } from "../../utils/pdfSettings"
+import { getWatermarkSettings, getHeaderFooterSettings } from "../../utils/pdfSettings"
 export interface PdfProgressState {
   currentFile: number
   totalFiles: number
@@ -137,17 +137,11 @@ export function usePdfExport({
           ? computeAutoPageSize(metaInfo.pageWidth, metaInfo.pageHeight)
           : undefined
 
-      // 水印：免费用户强制使用系统默认；Pro 用户使用自定义设置
-      let addWatermarkFlag: boolean
+      // 水印：免费用户走 paywall 路径（单条 DEMO、大字、全黑），Pro 用户使用自定义设置
+      const isPaywall = !isPro
+      let addWatermarkFlag = false
       let watermarkOptions: { text: string; fontSize: number; angle: number } | undefined
-      if (!isPro) {
-        addWatermarkFlag = true
-        watermarkOptions = {
-          text: DEFAULT_WATERMARK.text,
-          fontSize: DEFAULT_WATERMARK.fontSize,
-          angle: DEFAULT_WATERMARK.angle,
-        }
-      } else {
+      if (isPro) {
         const wmSettings = await getWatermarkSettings()
         addWatermarkFlag = wmSettings.enabled
         watermarkOptions = wmSettings.enabled
@@ -207,6 +201,7 @@ export function usePdfExport({
             const pdf = await generatePDF(batchImages, {
               orientation: resolvedOrientation,
               customPageSize,
+              isPaywall,
               addWatermark: addWatermarkFlag,
               watermarkOptions,
               homepage,
@@ -248,6 +243,7 @@ export function usePdfExport({
           const pdf = await generatePDF(filteredImages, {
             orientation: resolvedOrientation,
             customPageSize,
+            isPaywall,
             addWatermark: addWatermarkFlag,
             watermarkOptions,
             homepage,
