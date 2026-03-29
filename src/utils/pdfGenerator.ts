@@ -49,10 +49,14 @@ function addPaywallWatermarkToCanvas(
   ctx.save()
   ctx.font = `bold ${scaledFontSize}px sans-serif`
   ctx.fillStyle = 'rgba(0, 0, 0, 1.0)'
+  ctx.strokeStyle = 'rgba(0, 0, 0, 1.0)'
+  ctx.lineWidth = scaledFontSize * 0.15
+  ctx.lineJoin = 'round'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.translate(canvas.width / 2, canvas.height / 2)
   ctx.rotate(radians)
+  ctx.strokeText(PAYWALL_TEXT, 0, 0)
   ctx.fillText(PAYWALL_TEXT, 0, 0)
   ctx.restore()
 }

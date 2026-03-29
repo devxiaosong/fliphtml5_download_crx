@@ -40,7 +40,7 @@ export interface WatermarkSettings {
 }
 
 export const DEFAULT_WATERMARK: WatermarkSettings = {
-  enabled: true,
+  enabled: false,
   text: "CONFIDENTIAL",
   fontSize: 36,
   angle: 45,

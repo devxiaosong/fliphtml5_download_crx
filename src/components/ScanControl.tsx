@@ -234,7 +234,7 @@ export default function ScanControl() {
                   Current page is not a valid FlipHTML5 page
                 </Text>
                 <Link
-                  href="https://online.fliphtml5.com/oddka/BBC-Science-Focus-December-2025/?search=1#p=1"
+                  href="https://online.fliphtml5.com/xlnri/Sweet-Home-Advantage-Magazine-April-2026/?search=1#p=1"
                   target="_blank"
                   style={{ fontSize: '13px' }}
                   onClick={async () => {
